@@ -1,0 +1,4 @@
+typer>=0.9
+PyYAML>=6.0
+zhmcclient>=1.9
+urllib3>=1.26,<3

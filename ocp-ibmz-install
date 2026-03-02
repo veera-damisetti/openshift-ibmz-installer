@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+
+import logging
+import sys
+import typer
+
+import cmd.create as create
+import cmd.delete as delete
+
+# CLI root
+
+app = typer.Typer(
+    help="ocp-ibmz-install: Creates or Deletes OpenShift Cluster on IBM Z",
+    add_completion=False,
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
+
+# CREATE
+
+create_app = typer.Typer(help="Create OpenShift resources on IBM Z")
+app.add_typer(create_app, name="create")
+
+@create_app.command("manifests")
+def create_manifests(
+    log_level: str = typer.Option(
+        "INFO",
+        "--log-level",
+        "-l",
+        help="Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+        case_sensitive=False,
+    )
+):
+    """
+    Generate agent-config.yaml, install-config.yaml and other manifests.
+    """
+    setup_logging(log_level)
+    create.generate_manifests()
+
+@create_app.command("cluster")
+def create_cluster(
+    log_level: str = typer.Option(
+        "INFO",
+        "--log-level",
+        "-l",
+        help="Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+        case_sensitive=False,
+    )
+):
+    """
+    Create OpenShift cluster using generated manifests.
+    """
+    setup_logging(log_level)
+    create.cluster()
+
+# DELETE
+
+delete_app = typer.Typer(help="Delete OpenShift cluster and resources")
+app.add_typer(delete_app, name="delete")
+
+@delete_app.command("cluster")
+def delete_cluster(
+    log_level: str = typer.Option(
+        "INFO",
+        "--log-level",
+        "-l",
+        help="Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+        case_sensitive=False,
+    )
+):
+    """
+    Delete OpenShift cluster and clean up resources.
+    """
+    setup_logging(log_level)
+    delete.destroy_cluster()
+
+# Logging
+
+VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+
+def setup_logging(level: str):
+    level = level.upper()
+    if level not in VALID_LOG_LEVELS:
+        raise typer.BadParameter(
+            f"Invalid log level '{level}'. "
+            f"Choose from {', '.join(VALID_LOG_LEVELS)}"
+        )
+
+    root = logging.getLogger()
+    root.setLevel(level)
+    root.handlers.clear()
+
+    handler = logging.StreamHandler()
+    formatter = ColorFormatter(
+        "%(levelname)s %(message)s"
+    )
+    handler.setFormatter(formatter)
+    root.addHandler(handler)
+
+    # Silence noisy libraries
+    logging.getLogger("zhmcclient").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+
+RESET = "\033[0m"
+
+LEVEL_COLORS = {
+    logging.DEBUG: "\033[36m",     # Cyan
+    logging.INFO: "\033[32m",      # Green
+    logging.WARNING: "\033[33m",   # Yellow
+    logging.ERROR: "\033[31m",     # Red
+    logging.CRITICAL: "\033[41m",  # Red background
+}
+
+class ColorFormatter(logging.Formatter):
+    def format(self, record):
+        original_levelname = record.levelname
+
+        if sys.stderr.isatty():
+            color = LEVEL_COLORS.get(record.levelno, "")
+            record.levelname = f"{color}{record.levelname}{RESET}"
+
+        message = super().format(record)
+
+        # Restore to avoid side effects for other handlers
+        record.levelname = original_levelname
+        return message
+    
+# Entry
+
+if __name__ == "__main__":
+    app()
