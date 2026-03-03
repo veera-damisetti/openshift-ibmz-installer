@@ -99,6 +99,7 @@ def setup_logging(level: str):
     # Silence noisy libraries
     logging.getLogger("zhmcclient").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 RESET = "\033[0m"
 

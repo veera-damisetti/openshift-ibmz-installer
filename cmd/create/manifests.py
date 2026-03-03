@@ -1,4 +1,5 @@
 from src.dpm_partition import DpmPartition
+from src.remote_connection import RemoteHost
 from pathlib import Path
 import yaml
 import zhmcclient
@@ -41,3 +42,6 @@ def generate_manifests():
     print("Disk: ", disk)
     print("MAC Address: ", mac)
     print("Partition Info: ", info)
+
+    
+    

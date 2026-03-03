@@ -51,6 +51,10 @@ class DpmPartition():
         logger.debug("DPM partition %s is already stopped.",self.name)
         
     def get_disk_ids(self,partition,disk_type):
+        print(partition.list_attached_storage_groups(full_properties=True))
+        for sg in partition.list_attached_storage_groups(full_properties=True):
+            if sg.get_property("type") == 'fc' and sg.get_property("shared") == False:
+                print(sg.storage_volumes.list(full_properties=True))
         if disk_type == "fcp":
             disk_details = {"disk_id": "", "wwpn": "", "lun": ""}
             try:
@@ -161,11 +165,3 @@ class DpmPartition():
             logger.error("Error retrieving cpu and memory information for DPM partition %s: %s", self.name, str(e))
             return None
         return partition_info
-        
-
-
-
-
-
-
-
