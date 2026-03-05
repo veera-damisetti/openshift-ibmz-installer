@@ -1,0 +1,30 @@
+cluster: 
+    name: ''
+    base_domain: ''
+    version: ''
+
+infra:
+    hmc_host: 'x.x.x.x'
+    
+    paritions:
+        control_plane:
+        - t313lp16
+        compute: []
+
+    ip:
+        control_plane:
+        - x.x.x.x
+        compute: []
+    
+    disk_type: fcp 
+    network_type: osa
+
+bastion:
+    ip: 'x.x.x.x'
+
+ftp:
+    host: 'x.x.x.x'
+
+
+
+

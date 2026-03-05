@@ -1,0 +1,4 @@
+apiVersion: v1alpha1
+metadata:
+  name: {{ cluster.name }}
+rendezvousIP: {{ infra.ip.control_plane[0] }}

@@ -11,19 +11,29 @@ class RemoteHost:
         self.client = None
 
     def connect(self):
-        logger.debug("Connecting to remote host %s@%s:%d", self.username, self.host, self.port)
-        client = paramiko.SSHClient()
+        logger.debug("Connecting to remote host %s@host:%d", self.username, self.port)
+        try:
+            client = paramiko.SSHClient()
+            logger.debug("SSH client created successfully for host")
+        except Exception as e:
+            logger.error("Failed to create SSH client: %s", str(e))
+            raise
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-        client.connect(
-            hostname=self.host,
-            port=self.port,
-            username=self.username,
-            password=self.password,
-            timeout=self.timeout,
-            look_for_keys=False,
-            allow_agent=False
-        )
+        try:
+            logger.debug("Attempting to connect to %s@host:%d", self.username, self.port)
+            client.connect(
+                hostname=self.host,
+                port=self.port,
+                username=self.username,
+                password=self.password,
+                timeout=self.timeout,
+                look_for_keys=False,
+                allow_agent=False
+            )
+            logger.debug("Successfully connected to %s@host:%d", self.username, self.port)
+        except Exception as e:
+            logger.error("Failed to connect to %s@host:%d: %s", self.username, self.port, str(e))
+            raise
 
         self.client = client
 
@@ -51,9 +61,8 @@ class RemoteHost:
             raise RuntimeError("SSH client is not connected")
 
         logger.debug(
-            "Sending the file to %s@%s:%s",
+            "Sending the file to %s@host:%s",
             self.username,
-            self.host,
             remote_path,
         )
 
@@ -62,4 +71,6 @@ class RemoteHost:
             sftp.put(local_path, remote_path)
         finally:
             sftp.close()
+
+    
 
