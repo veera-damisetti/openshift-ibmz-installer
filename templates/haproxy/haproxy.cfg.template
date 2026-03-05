@@ -1,0 +1,84 @@
+# Global and defaults
+global
+  log         127.0.0.1 local2
+  pidfile     /var/run/haproxy.pid
+  maxconn     4000
+  daemon
+
+defaults
+  mode                    http
+  log                     global
+  option                  dontlognull
+  option                  http-server-close
+  option                  redispatch
+  retries                 3
+  timeout http-request    10s
+  timeout queue           1m
+  timeout connect         10s
+  timeout client          1m
+  timeout server          1m
+  timeout http-keep-alive 10s
+  timeout check           10s
+  maxconn                 3000
+
+# Frontend stats
+frontend stats
+  bind *:1936
+  mode            http
+  log             global
+  maxconn 10
+  stats enable
+  stats hide-version
+  stats refresh 30s
+  stats show-node
+  stats uri /stats
+
+{%- set control_nodes = infra.ip.control_plane %}
+{%- set compute_nodes = infra.ip.data_plane %}
+
+# API Server 6443
+listen api-server-6443
+  bind bastion.{{ cluster.name }}.{{ cluster.base_domain }}:6443
+  mode tcp
+{%- for i in range(control_nodes | length) %}
+  server control-{{ i }} control-{{ i }}.{{ cluster.name }}.{{ cluster.base_domain }}:6443 check inter 1s
+{%- endfor %}
+
+# Machine Config Server 22623
+listen machine-config-server-22623
+  bind bastion.{{ cluster.name }}.{{ cluster.base_domain }}:22623
+  mode tcp
+{%- for i in range(control_nodes | length) %}
+  server control-{{ i }} control-{{ i }}.{{ cluster.name }}.{{ cluster.base_domain }}:22623 check inter 1s
+{%- endfor %}
+
+# Ingress Router 443
+listen ingress-router-443
+  bind bastion.{{ cluster.name }}.{{ cluster.base_domain }}:443
+  mode tcp
+  balance source
+{%- if compute_nodes | length == 0 %}
+{%- for i in range(control_nodes | length) %}
+  server control-{{ i }} control-{{ i }}.{{ cluster.name }}.{{ cluster.base_domain }}:443 check inter 1s
+{%- endfor %}
+{%- else %}
+{%- for i in range(compute_nodes | length) %}
+  server compute-{{ i }} compute-{{ i }}.{{ cluster.name }}.{{ cluster.base_domain }}:443 check inter 1s
+{%- endfor %}
+{%- endif %}
+
+# Ingress Router 80
+listen ingress-router-80
+  bind bastion.{{ cluster.name }}.{{ cluster.base_domain }}:80
+  mode tcp
+  balance source
+{%- if compute_nodes | length == 0 %}
+{%- for i in range(control_nodes | length) %}
+  server control-{{ i }} control-{{ i }}.{{ cluster.name }}.{{ cluster.base_domain }}:80 check inter 1s
+{%- endfor %}
+{%- else %}
+{%- for i in range(compute_nodes | length) %}
+  server compute-{{ i }} compute-{{ i }}.{{ cluster.name }}.{{ cluster.base_domain }}:80 check inter 1s
+{%- endfor %}
+{%- endif %}
+

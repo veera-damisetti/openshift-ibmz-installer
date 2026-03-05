@@ -72,5 +72,27 @@ class RemoteHost:
         finally:
             sftp.close()
 
+    def get_gateway(self):
+        """
+        Fetch the default gateway from the remote host using `ip route`.
+        Returns the gateway IP as a string.
+        """
+        if not self.client:
+            raise RuntimeError("SSH client is not connected")
+
+        exit_code, out, err = self.run("ip route")
+
+        if exit_code != 0:
+            logger.error("Failed to fetch routing table: %s", err)
+            raise RuntimeError("Unable to determine gateway")
+
+        for line in out.splitlines():
+            if line.startswith("default via"):
+                parts = line.split()
+                gateway = parts[2]
+                logger.debug("Default gateway retrieved successfully")
+                return gateway
+
+        raise RuntimeError("Default gateway not found in routing table")
     
 

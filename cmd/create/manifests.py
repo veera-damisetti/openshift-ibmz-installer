@@ -4,7 +4,6 @@ import cmd.common.helpers as helpers
 import  cmd.common.template_renderer as template_renderer
 import cmd.common.input_reader as common
 from pathlib import Path
-import yaml
 import zhmcclient
 import logging
 import urllib3
@@ -16,20 +15,26 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 CONFIG_FILE = BASE_DIR / "inputs.yaml"
 
 def generate_manifests():
-    secrets = common.secrets_reader()
+    secrets , found_in_env = common.secrets_reader()
+    print(found_in_env)
+    if not found_in_env: 
+        logger.warning("Couldn't find all the secrets in env, so creating .secrets file for further access")
+        logger.warning("Recommended way is to export all the secrets using environment variables")
+        secrets_path = BASE_DIR / ".secrets"
+        helpers.write_secrets_file(secrets_path,secrets)
     if not CONFIG_FILE.exists():
         logger.info(
         "Input configuration file 'inputs.yaml' was not found at %s. "
         "Switching to interactive mode to collect user inputs.",BASE_DIR,
         )
         common.input_reader()
-    else:
-        logger.info(
-            "Input configuration file 'inputs.yaml' found at %s. "
-            "Loading configuration from file.", BASE_DIR,
-        )
-        config = load_config(CONFIG_FILE)
-        logger.debug("Configuration loaded")
+    
+    logger.info(
+        "Input configuration file 'inputs.yaml' found at %s. "
+        "Loading configuration from file.", BASE_DIR,
+    )
+    config = helpers.load_config(CONFIG_FILE)
+    logger.debug("Configuration loaded")
     
     cluster_name = config["cluster"]["name"]
     cluster_dir = BASE_DIR / cluster_name
@@ -110,6 +115,3 @@ def generate_manifests():
 
     
     
-def load_config(config_filepath):
-    with open(config_filepath, encoding="utf-8") as f:
-        return yaml.safe_load(f)

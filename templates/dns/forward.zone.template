@@ -1,0 +1,28 @@
+$TTL 900
+
+@                     IN SOA bastion.{{ cluster.name }}.{{ cluster.base_domain }}.zone. hostmaster.{{ cluster.name }}.{{ cluster.base_domain }}.zone. (
+                                        0       ; serial
+                                        1D      ; refresh
+                                        1H      ; retry
+                                        1W      ; expire
+                                        3H )    ; minimum
+                      IN NS bastion.{{ cluster.name }}.{{ cluster.base_domain }}.zone.
+
+
+bastion               IN A {{ bastion.ip }}
+*.apps                IN A {{ bastion.ip }} 
+api                   IN A {{ bastion.ip }} 
+api-int               IN A {{ bastion.ip }}
+
+{% set control_nodes = infra.ip.control_plane %}
+{% set compute_nodes = infra.ip.data_plane %}
+
+{# Control plane nodes #}
+{% for ip in control_nodes %}
+control-{{ loop.index0 }}            IN A {{ ip }}
+{% endfor %}
+
+{# Compute nodes (if any) #}
+{% for ip in compute_nodes %}
+compute-{{ loop.index0 }}            IN A {{ ip }}
+{% endfor %}

@@ -1,8 +1,18 @@
 import ipaddress 
 import subprocess
 from pathlib import Path
+import yaml
 import logging
+
 logger = logging.getLogger("ocp_ibmz_install")
+
+def load_config(config_filepath):
+    with open(config_filepath, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+def get_basepath():
+    base_dir = Path(__file__).resolve().parents[2]
+    return base_dir
 
 def get_cidr(ip_list):
     """
@@ -73,3 +83,14 @@ def generate_ssh_keypair(key_name: str = "ocp-ibmz-install", ssh_dir: str = "~/.
     except Exception as e:
         logger.error("Error reading public key %s: %s", pub_key_path, e)
         raise
+
+def write_secrets_file(file_path ,secrets):
+    logger.debug("Writing secrets to .secrets file")
+    try:
+        with file_path.open("w") as f:
+            yaml.dump(secrets, f, default_flow_style=False)
+        logger.debug("Successfully created .secrets file with the secrets")
+    except Exception as e:
+        logger.error("Error in writing secerts to a file")
+        raise e
+    

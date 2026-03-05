@@ -125,7 +125,7 @@ def input_reader():
                     "control_plane": [
                         p.strip() for p in control_plane_partitions.split(",") if p.strip()
                     ],
-                    "compute": [
+                    "data_plane": [
                         p.strip() for p in compute_partitions.split(",") if p.strip()
                     ],
                 },
@@ -133,7 +133,7 @@ def input_reader():
                     "control_plane": [
                         ip.strip() for ip in control_plane_ips.split(",") if ip.strip()
                     ],
-                    "compute": [
+                    "data_plane": [
                         ip.strip() for ip in compute_ips.split(",") if ip.strip()
                     ],
                 },
@@ -282,6 +282,13 @@ def get_secret(env_name: str, prompt: str, secret: bool = False):
 
 def secrets_reader():
     secrets = {}
+    env_vars = ["HMC_USERNAME","HMC_PASSWORD","FTP_SERVER_USERNAME","FTP_PASSWORD","BASTION_USERNAME","BASTION_PASSWORD"]
+    found_in_env = True
+    for var in env_vars: 
+        if not os.getenv(var):
+            found_in_env = False
+            break
+    
     hmc_username = get_secret(
         "HMC_USERNAME",
         "HMC username:",
@@ -318,13 +325,19 @@ def secrets_reader():
     )
 
     pull_secret = get_pull_secret()
-    secrets ['hmc_username'] = hmc_username
-    secrets ['pull_secret'] = pull_secret
 
-    return secrets
+    secrets['hmc_username'] = hmc_username
+    secrets['pull_secret'] = pull_secret
+    secrets['hmc_password'] = hmc_password
+    secrets['ftp_username'] = ftp_username
+    secrets['ftp_password'] = ftp_password
+    secrets['bastion_username'] = bastion_username
+    secrets['bastion_password'] = bastion_password
+
     
 
-
+    return secrets,found_in_env
+    
 # Get pull secret from authfile, environment variable, or prompt user for input, exiting if value is not provided
 def get_pull_secret():
     # Repo root: ./authfile
