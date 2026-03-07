@@ -33,8 +33,8 @@ frontend stats
   stats show-node
   stats uri /stats
 
-{%- set control_nodes = infra.ip.control_plane %}
-{%- set compute_nodes = infra.ip.data_plane %}
+{%- set control_nodes = infra.ip.control_nodes %}
+{%- set compute_nodes = infra.ip.compute_nodes %}
 
 # API Server 6443
 listen api-server-6443

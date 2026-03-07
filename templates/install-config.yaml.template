@@ -4,12 +4,12 @@ controlPlane:
   architecture: s390x
   hyperthreading: Enabled
   name: master
-  replicas: {{ infra.partitions.control_plane | length }}
+  replicas: {{ infra.partitions.control_nodes | length }}
 compute:
 - architecture: s390x
   hyperthreading: Enabled
   name: worker
-  replicas: {{ infra.partitions.data_plane | length }}             
+  replicas: {{ infra.partitions.compute_nodes | length }}             
 metadata:
   name: {{ cluster.name }}  # Cluster Name
 networking:

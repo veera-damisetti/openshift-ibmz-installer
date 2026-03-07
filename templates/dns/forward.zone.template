@@ -14,8 +14,8 @@ bastion               IN A {{ bastion.ip }}
 api                   IN A {{ bastion.ip }} 
 api-int               IN A {{ bastion.ip }}
 
-{% set control_nodes = infra.ip.control_plane %}
-{% set compute_nodes = infra.ip.data_plane %}
+{% set control_nodes = infra.ip.control_nodes %}
+{% set compute_nodes = infra.ip.compute_nodes %}
 
 {# Control plane nodes #}
 {% for ip in control_nodes %}

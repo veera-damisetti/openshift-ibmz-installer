@@ -90,19 +90,6 @@ def input_reader():
         if bastion_ip is None:
             sys.exit(1)
 
-        bastion_username = questionary.text(
-            "Bastion username:",
-            default="root",
-        ).ask()
-        if bastion_username is None:
-            sys.exit(1)
-
-        bastion_password = questionary.password(
-            "Bastion password:",
-        ).ask()
-        if bastion_password is None:
-            sys.exit(1)
-
         # ---- FTP ----
         ftp_host = questionary.text(
             "FTP host:",
@@ -122,26 +109,24 @@ def input_reader():
                 "disk_type": disk_type,
                 "network_type": network_type,
                 "partitions": {
-                    "control_plane": [
+                    "control_nodes": [
                         p.strip() for p in control_plane_partitions.split(",") if p.strip()
                     ],
-                    "data_plane": [
+                    "compute_nodes": [
                         p.strip() for p in compute_partitions.split(",") if p.strip()
                     ],
                 },
                 "ip": {
-                    "control_plane": [
+                    "control_nodes": [
                         ip.strip() for ip in control_plane_ips.split(",") if ip.strip()
                     ],
-                    "data_plane": [
+                    "compute_nodes": [
                         ip.strip() for ip in compute_ips.split(",") if ip.strip()
                     ],
                 },
             },
             "bastion": {
                 "ip": bastion_ip,
-                "username": bastion_username,
-                "password": bastion_password,
             },
             "ftp": {
                 "host": ftp_host,

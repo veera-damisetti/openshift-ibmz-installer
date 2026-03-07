@@ -41,7 +41,7 @@ def generate_manifests():
     cluster_dir.mkdir(parents=True, exist_ok=True)
 
     installation_method = 'ABI'
-    if len(config['infra']['partitions']['data_plane']) > 0 :
+    if len(config['infra']['partitions']['compute_nodes']) > 0 :
         installation_method = 'UPI'
         logger.debug("Using User-Provisioned Infrastructure ( UPI ) as Installation mode")
     else:
@@ -51,7 +51,7 @@ def generate_manifests():
 
     logger.debug("Creating install-config.yaml")
     logger.debug("Caluculating machine network CIDR based on Node IPs")
-    all_ips = config['infra']['ip']['control_plane']+config['infra']['ip']['data_plane'] + [config['bastion']['ip']]
+    all_ips = config['infra']['ip']['control_nodes']+config['infra']['ip']['compute_nodes'] + [config['bastion']['ip']]
     machine_network_cidr = helpers.get_cidr(all_ips)
     config['machine_network_cidr'] = machine_network_cidr
     config = config | secrets
@@ -59,33 +59,31 @@ def generate_manifests():
     config ['ssh_key'] = helpers.generate_ssh_keypair("ocp-ibmz-install")
 
     logger.debug("Rendering install-config.yaml from template")
-    try:
-        template_renderer.render_template(
+    exit_code, err = template_renderer.render_template(
                 template_name="install-config.yaml.template",
                 output_path=Path(cluster_dir / "install-config.yaml"),
                 config=config,
         )
-    except:
-        logger.error("Unabled to render the install-config.yaml from template")
-        return    
+    if exit_code != 0:
+        logger.error("Unable to render the install-config.yaml from template , %s",err)
+        return 
     
     logger.debug("install-config.yaml generated successfully")
 
     if installation_method == 'ABI':
         logger.debug("Creating agent-config.yaml")
-        try:
-            logger.debug("Rendering agent-config.yaml from template")
-            template_renderer.render_template(
+        
+        logger.debug("Rendering agent-config.yaml from template")
+        exit_code, err = template_renderer.render_template(
                 template_name="agent-config.yaml.template", 
                 output_path=Path(cluster_dir / "agent-config.yaml"),
                 config=config,
             )
-        except:
-            logger.error("Unabled to render the agent-config.yaml from template")
+        if exit_code != 0:
+            logger.error("Unable to render the agent-config.yaml from template , %s",err)
             return    
         logger.debug("agent-config.yaml generated successfully")
         logger.info("Successfully generated agent-config.yaml and install-config.yaml and saved in %s",cluster_dir)
-    
     return
         
 

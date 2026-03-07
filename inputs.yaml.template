@@ -7,14 +7,14 @@ infra:
     hmc_host: 'x.x.x.x'
     
     paritions:
-        control_plane:
+        control_nodes:
         - t313lp16
-        compute: []
+        compute_nodes: []
 
     ip:
-        control_plane:
+        control_nodes:
         - x.x.x.x
-        compute: []
+        compute_nodes: []
     
     disk_type: fcp 
     network_type: osa

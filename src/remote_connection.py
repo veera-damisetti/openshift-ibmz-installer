@@ -58,7 +58,7 @@ class RemoteHost:
     
     def send_file(self, local_path, remote_path):
         if not self.client:
-            raise RuntimeError("SSH client is not connected")
+            return 1 , "SSH client is not connected"
 
         logger.debug(
             "Sending the file to %s@host:%s",
@@ -71,6 +71,8 @@ class RemoteHost:
             sftp.put(local_path, remote_path)
         finally:
             sftp.close()
+        
+        return 0, ""
 
     def get_gateway(self):
         """

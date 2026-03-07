@@ -1,0 +1,15 @@
+rd.neednet=1
+ignition.firstboot
+ignition.platform.id=metal
+cio_ignore=all,!condev
+ai.ip_cfg_override=1
+console=ttysclp0
+coreos.live.rootfs_url=http://{{ bastion_ip }}:8080/rootfs.img
+ip={{ ip }}::{{ gateway }}:255.255.0.0:{{ hostname }}:{% if network_type|lower == "osa" %}enc{% else %}eno{% endif %}{{ network_info }}:none
+nameserver={{ bastion_ip }}
+{% if disk_type|lower == "fcp" -%}
+zfcp.allow_lun_scan=0
+rd.zfcp=0.0.{{ disk_info.disk_id }},0x{{ disk_info.wwpn }},0x{{ disk_info.lun }}
+{%- else -%}
+rd.dasd=0.0.{{ disk_info.disk_id }}
+{%- endif %}
