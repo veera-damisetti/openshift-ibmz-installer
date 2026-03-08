@@ -27,7 +27,7 @@ class HMCClient():
         if self.session:
             logger.debug("Disconnecting from HMC at %s", self.host)
             try:
-                self.session.logout()
+                self.session.logoff()
                 logger.debug("Successfully disconnected from HMC at %s", self.host)
             except zhmcclient.Error as e:
                 logger.error("Failed to disconnect from HMC at %s: %s", self.host, str(e))

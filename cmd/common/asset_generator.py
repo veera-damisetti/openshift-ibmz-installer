@@ -112,6 +112,17 @@ def run_openshift_install(bastion: RemoteHost, cluster_name: str,version: str):
 
         time.sleep(0.1)
 
-    return channel.recv_exit_status()
+    return channel.recv_exit_status(), ""
+
+# Function to copy the rootfs image to /var/www/html/ on bastion host to be used for cluster installation
+def copy_rootfs_to_webserver_path( rootfs_path, bastion: RemoteHost) :
+    command = "cp {} /var/www/html/rootfs.img".format(rootfs_path)
+    command += " && chmod 644 /var/www/html/rootfs.img"
+    exit_code, out, err = bastion.run(command, sudo=True)
+    if exit_code != 0:
+        logger.error("Failed to copy rootfs image to webserver path on bastion host, %s", err)
+        return 1, f"Failed to copy rootfs image to webserver path on bastion host: {err}"
+    logger.debug("Successfully copied rootfs image to webserver path on bastion host")
+    return 0, ""
 
 

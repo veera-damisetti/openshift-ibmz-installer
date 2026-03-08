@@ -23,7 +23,3 @@ networking:
   - 172.30.0.0/16
 platform:
   none: {}
-pullSecret: > # Pull Secret that needs to be copied from console.redhat.com/openshift/install/pull-secret 
-  '{{ pull_secret }}'
-sshKey: > # SSH Key , this will be used while bringing up all the OCP Nodes
-  '{{ ssh_key }}'

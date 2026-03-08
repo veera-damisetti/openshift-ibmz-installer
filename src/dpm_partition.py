@@ -40,7 +40,13 @@ class DpmPartition():
             logger.debug("DPM partition %s is already active.", self.name)
             logger.debug("Stopping DPM partition %s before starting it again.", self.name)
             self.stop()
-        self.partition.start(wait_for_completion=True)
+        try:
+            self.partition.start(wait_for_completion=True)
+            logger.debug("DPM partition %s started successfully.", self.name)
+            return 0, ""
+        except zhmcclient.Error as e:
+            logger.error("Error starting DPM partition %s: %s", self.name, str(e))
+            return 1, str(e)
 
     def stop(self):
         if self.get_status() != 'stopped':

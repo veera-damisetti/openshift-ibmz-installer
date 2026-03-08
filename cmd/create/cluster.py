@@ -1,5 +1,6 @@
 import logging
 import sys
+from typer import echo
 import urllib3
 from pathlib import Path
 import cmd.common.helpers as helpers
@@ -10,6 +11,8 @@ import cmd.common.asset_generator as asset_generator
 from src.hmc import HMCClient
 from src.paramfile_generator import ParamFileGenerator  
 from src.dpm_partition import DpmPartition
+from src.ftp_connector import FtpConnector
+import cmd.common.boot_manager as boot_manager
 
 
 logger = logging.getLogger("ocp_ibmz_install")
@@ -58,7 +61,11 @@ def cluster():
     bastion_client = RemoteHost(config['bastion']['ip'],config['bastion_username'],config['bastion_password'])
     bastion_client.connect()
     gateway=bastion_client.get_gateway()
-    config['gateway']=gateway
+    if gateway is not None:
+        config['gateway']=gateway
+    else:
+        logger.error("Failed to retrieve gateway IP from bastion host")
+        return
     
     logger.debug("Starting the configuration of bastion host for cluster installation")
     
@@ -67,17 +74,17 @@ def cluster():
         logger.error("Failed to create workdir on bastion host, %s", err)
         return
     
-    #exit_code , err = bastion.configure_dns(config)
+    exit_code , err = bastion.configure_dns(config)
     if exit_code != 0:
         logger.error("Failed to configure DNS on bastion host, %s", err)
         return  
     
-    #xit_code , err = bastion.configure_haproxy(config)
+    exit_code , err = bastion.configure_haproxy(config)
     if exit_code != 0:          
         logger.error("Failed to configure HAProxy on bastion host, %s", err)
         return 
     
-    #exit_code , err = bastion.configure_http_server(config)
+    exit_code , err = bastion.configure_http_server(config)
     if exit_code != 0:
         logger.error("Failed to configure HTTP server on bastion host, %s", err)
         return
@@ -85,21 +92,28 @@ def cluster():
     logger.debug("Successfully configured bastion host for cluster installation")
 
 
-    #exit_code , err = asset_generator.download_openshift_installer(config['cluster']['version'], bastion_client)
+    exit_code , err = asset_generator.download_openshift_installer(config['cluster']['version'], bastion_client)
     if exit_code != 0:
         logger.error("Failed to download OpenShift installer, %s", err)
         return
-    #exit_code , err = asset_generator.send_manifests_to_bastion(config['cluster']['name'], bastion_client)
+    exit_code , err = asset_generator.send_manifests_to_bastion(config['cluster']['name'], bastion_client)
     if exit_code != 0:
         logger.error("Failed to send manifests to bastion host, %s", err)
         return
 
     logger.info("Starting the asset generation by running openshift-install command on bastion host")
-    #exit_code, err = asset_generator.run_openshift_install(bastion_client, config['cluster']['name'], config['cluster']['version'])
+    exit_code, err = asset_generator.run_openshift_install(bastion_client, config['cluster']['name'], config['cluster']['version'])
     if exit_code != 0:
         logger.error("Failed to run OpenShift Installer to generate boot artifacts, %s", err)
         return
     logger.debug("Successfully ran openshift-install command on bastion host to generate boot artifacts")
+
+    exit_code, err = asset_generator.copy_rootfs_to_webserver_path(f"{bastion_client.run('echo $HOME')[1].strip()}/{config['cluster']['name']}/boot-artifacts/agent.s390x-rootfs.img", bastion_client)
+    if exit_code != 0:
+        logger.error("Failed to copy rootfs image to webserver path on bastion host, %s", err)
+        return
+    logger.debug("Successfully copied rootfs image to webserver path on bastion host")
+
 
     hmc=HMCClient(config['infra']['hmc_host'], config['hmc_username'], config['hmc_password'])
     exit_code, err = hmc.connect()
@@ -109,7 +123,6 @@ def cluster():
     logger.debug("Successfully connected to HMC")
 
     
-
     logger.debug("Starting the param file generation for each control plane node")
     exit_code, err = generate_param_files(config,'control_nodes',hmc,bastion_client)
     if exit_code != 0:
@@ -120,10 +133,46 @@ def cluster():
         logger.debug("Starting the param file generation for each compute node")
         exit_code, err = generate_param_files(config,'compute_nodes',hmc,bastion_client)
         if exit_code != 0:
-            logger.error("Failed to generate param files for compute plane nodes, %s", err)
+            logger.error("Failed to generate param files for compute nodes, %s", err)
             return
-        logger.debug("Successfully generated param files for compute plane nodes")
-     
+        logger.debug("Successfully generated param files for compute nodes")
+    else:
+        logger.debug("No compute nodes defined in configuration, skipping param file generation for compute nodes")
+    hmc.disconnect()
+    logger.debug("Disconnected from HMC")
+
+
+    exit_code, err = bastion_client.prepare_ftp_structure(f"{bastion_client.run('echo $HOME')[1].strip()}/{config['cluster']['name']}")  
+    if exit_code != 0:
+        logger.error("Failed to prepare FTP structure on bastion host, %s", err)
+        return
+    logger.debug("Successfully prepared FTP structure on bastion host for cluster installation")
+
+    ftp_connector = FtpConnector(bastion_client, config['ftp']['host'], config['ftp_username'], config['ftp_password'])
+    exit_code, err = ftp_connector.send_dir_to_ftp(f"{bastion_client.run('echo $HOME')[1].strip()}/{config['cluster']['name']}/{config['cluster']['name']}-ftp", f"{config['cluster']['name']}")     
+    if exit_code != 0:
+        logger.error("Failed to send FTP directory to FTP server, %s", err)
+        return
+    logger.debug("Successfully sent FTP directory file to FTP server")
+
+
+    exit_code, err = boot_manager.node_boot_orchestrator(config)
+    if exit_code != 0:
+        logger.error("Failed to boot nodes, %s", err)
+        return
+    logger.debug("Successfully booted all nodes")
+
+    exit_code, err = boot_manager.wait_for_bootstrap_completion(bastion_client, config['cluster']['name'])
+    if exit_code != 0:
+        logger.error("Error while waiting for bootstrap completion, %s", err)
+        return
+    logger.debug("Bootstrap process completed successfully")
+
+    exit_code, err = boot_manager.wait_for_installation_completion(bastion_client, config['cluster']['name'])
+    if exit_code != 0:
+        logger.error("Error while waiting for installation completion, %s", err)
+        return
+    logger.debug("Cluster installation completed successfully")
     
     return
     
@@ -166,10 +215,13 @@ def generate_param_files(config,node_type,hmc,bastion_client):
             return 1, f"Failed to generate param file for partition {node_partitions[i]}: {err}"
         logger.debug("Successfully generated param file for partition %s", node_partitions[i])
 
-        #send to bastion host
         exit_code, err = param_generator.send_param_file(bastion_client, hostname_prefix + f"-{i}")
         if exit_code != 0:
             logger.error("Failed to send param file for partition %s to bastion host, %s", node_partitions[i], err)
             return 1, f"Failed to send param file for partition {node_partitions[i]} to bastion host: {err}"
-        logger.debug("Successfully sent param file for partition %s to bastion host", node_partitions[i])   
+        logger.debug("Successfully sent param file for partition %s to bastion host", node_partitions[i])
+
+
+        
+
     return 0, ""

@@ -6,7 +6,7 @@ cluster:
 infra:
     hmc_host: 'x.x.x.x'
     
-    paritions:
+    partitions:
         control_nodes:
         - t313lp16
         compute_nodes: []

@@ -1,3 +1,5 @@
+import json
+
 from src.dpm_partition import DpmPartition
 from src.remote_connection import RemoteHost
 import cmd.common.helpers as helpers
@@ -6,6 +8,7 @@ import cmd.common.input_reader as common
 from pathlib import Path
 import zhmcclient
 import logging
+import yaml
 import urllib3
 
 logger = logging.getLogger(__name__)
@@ -68,6 +71,37 @@ def generate_manifests():
         logger.error("Unable to render the install-config.yaml from template , %s",err)
         return 
     
+    logger.debug("Adding pullSecret and sshKey to install-config.yaml")
+    install_config_path = cluster_dir / "install-config.yaml"
+    try:
+        # Load generated YAML
+        with open(install_config_path, "r") as f:
+            install_config = yaml.safe_load(f)
+       
+        pull_secret_clean = json.dumps(
+        json.loads(config["pull_secret"]),
+        separators=(",", ":")
+        )
+
+        install_config["pullSecret"] = pull_secret_clean
+        install_config['sshKey'] = config['ssh_key']
+
+        # Write back
+        with open(install_config_path, "w") as f:
+            yaml.dump(
+                install_config,
+                f,
+                default_flow_style=False,
+                sort_keys=False,
+                indent=2
+            )
+
+        logger.debug("pullSecret and sshKey added to install-config.yaml successfully")
+
+    except Exception as e:
+        logger.error("Failed to update pullSecret in install-config.yaml: %s", e)
+        return
+
     logger.debug("install-config.yaml generated successfully")
 
     if installation_method == 'ABI':

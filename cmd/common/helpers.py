@@ -15,6 +15,31 @@ def get_basepath():
     return base_dir
 
 def get_cidr(ip_list):
+    # update this function just to find the cidr by keeping first 2 octets fixed and varying last 2 octets to accomodate all ips in the list, as in most of the cases the machines will be in same rack and will have same first 2 octets
+
+    if not ip_list:
+        return None
+    
+    # Convert strings to IP objects and find the bounds
+    ips = sorted([ipaddress.IPv4Address(ip) for ip in ip_list])
+    min_ip = int(ips[0])
+    max_ip = int(ips[-1])
+    # Find the first bit where the min and max differ
+    # XOR shows the differing bits
+    diff = min_ip ^ max_ip  
+    # The length of the common prefix is 32 minus the position
+    # of the most significant bit that differs
+    if diff == 0:
+        prefix_len = 32
+    else:
+        prefix_len = 32 - diff.bit_length()
+    # For simplicity, we can assume that the first 2 octets are fixed and vary the last 2 octets to accommodate all IPs in the list
+    prefix_len = min(prefix_len, 16)  # Ensure that we don't go beyond /16
+    network = ipaddress.IPv4Network((ips[0], prefix_len), strict=False)                 
+    return str(network)
+
+    # Not using the below logic for now,  as it can give very minimal cidr which may not be practical for the cluster network, as we might add more machines in future
+
     """
     Takes a list of IP strings and returns the smallest CIDR 
     that contains all of them.

@@ -76,6 +76,17 @@ def configure_dns(config: dict):
         logger.error("Error while opening port 53 for DNS on bastion") 
         remote_host.close()
         return 1, "Failed to open port 53 for DNS on bastion"
+    
+    logger.debug("Updating resolv.conf on bastion host to use local named server for name resolution")
+    cmd = f"grep -q '^nameserver {config['bastion']['ip']}' /etc/resolv.conf || sudo sed -i '1inameserver {config['bastion']['ip']}' /etc/resolv.conf"
+    exit_code, out, err = remote_host.run(cmd, sudo=True)
+    if exit_code != 0:
+        logger.error("Failed to update /etc/resolv.conf: %s", err)
+        remote_host.close()
+        return 1, err
+
+    logger.debug("Added bastion IP as nameserver in /etc/resolv.conf")
+
     remote_host.close()
     return 0 , ""
 
@@ -141,7 +152,7 @@ def configure_http_server(config: dict):
 
     commands = [
         "sudo yum install -y httpd",
-        "sudo sed -i 's/^Listen 80 /Listen 8080/' /etc/httpd/conf/httpd.conf",
+        "sudo sed -i 's/^Listen[[:space:]]\+80$/Listen 8080/' /etc/httpd/conf/httpd.conf",
         "sudo systemctl enable httpd",
         "sudo systemctl restart httpd"
     ]
