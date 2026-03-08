@@ -14,44 +14,45 @@ def node_boot_orchestrator(config):
     exit_code, err = hmc.connect()
     if exit_code != 0:
         logger.error("Failed to connect to HMC, %s", err)
-        return  
+        return 1, f"Failed to connect to HMC: {err}"
     logger.debug("Successfully connected to HMC")
+    try:
+        logger.debug("Starting the boot procedure for all nodes")
+        control_nodes = config['infra']['partitions']['control_nodes']
+        compute_nodes = config['infra']['partitions']['compute_nodes']
+        node_types = ['control']
+        if len(compute_nodes) > 0:
+            node_types.append('compute')
+        else:
+            logger.debug("No compute nodes defined in configuration, skipping boot procedure for compute nodes")
+        
+        console = hmc.client.consoles.console
+        partitions = console.list_permitted_partitions()
+        logger.debug(f"Retrieved the list of partitions from HMC console")
 
-    logger.debug("Starting the boot procedure for all nodes")
-    control_nodes = config['infra']['partitions']['control_nodes']
-    compute_nodes = config['infra']['partitions']['compute_nodes']
-    node_types = ['control']
-    if len(compute_nodes) > 0:
-        node_types.append('compute')
-    else:
-        logger.debug("No compute nodes defined in configuration, skipping boot procedure for compute nodes")
-    
-    console = hmc.client.consoles.console
-    partitions = console.list_permitted_partitions()
-    logger.debug(f"Retrieved the list of partitions from HMC console")
+        for node_type in node_types:
+            logger.debug(f"Starting the boot procedure for {node_type} nodes")
+            nodes = config['infra']['partitions'][f"{node_type}_nodes"]
+            for i in range(len(nodes)):
+                
+                partition = [x for x in partitions if x.properties.get("name") == nodes[i]][0]
+                logger.debug(f"Booting {node_type} node : {node_type}-{i} : {nodes[i]}")
 
-    for node_type in node_types:
-        logger.debug(f"Starting the boot procedure for {node_type} nodes")
-        nodes = config['infra']['partitions'][f"{node_type}_nodes"]
-        for i in range(len(nodes)):
-            
-            partition = [x for x in partitions if x.properties.get("name") == nodes[i]][0]
-            logger.debug(f"Booting {node_type} node : {node_type}-{i} : {nodes[i]}")
+                dpm_partition = DpmPartition(nodes[i], config['infra']['disk_type'], config['infra']['network_type'], partition)
 
-            dpm_partition = DpmPartition(nodes[i], config['infra']['disk_type'], config['infra']['network_type'], partition)
+                boot_manager = BootManager(hmc, dpm_partition, config['ftp']['host'], config['ftp_username'], config['ftp_password'], config['cluster']['name'], f"{node_type}-{i}")
 
-            boot_manager = BootManager(hmc, dpm_partition, config['ftp']['host'], config['ftp_username'], config['ftp_password'], config['cluster']['name'], f"{node_type}-{i}")
+                exit_code, err = boot_manager.boot_partition()
+                if exit_code != 0:  
+                    logger.error(f"Failed to boot {node_type} node %s, %s", nodes[i], err)
+                    return 1, f"Failed to boot {node_type} node {nodes[i]}: {err}"
+                logger.debug("Successfully booted {node_type} node %s", nodes[i])
+            logger.debug("Completed the boot procedure for {node_type} nodes")
 
-            exit_code, err = boot_manager.boot_partition()
-            if exit_code != 0:  
-                logger.error(f"Failed to boot {node_type} node %s, %s", nodes[i], err)
-                return 1, f"Failed to boot {node_type} node {nodes[i]}: {err}"
-            logger.debug("Successfully booted {node_type} node %s", nodes[i])
-        logger.debug("Completed the boot procedure for {node_type} nodes")
-
-    logger.debug("Successfully completed the boot procedure for all nodes")
-    hmc.disconnect()
-    logger.debug("Disconnected from HMC")
+        logger.debug("Successfully completed the boot procedure for all nodes")
+    finally:
+        hmc.disconnect()
+        logger.debug("Disconnected from HMC")
     return 0, ""
 
 def wait_for_installation_completion(bastion_client, cluster_name: str):

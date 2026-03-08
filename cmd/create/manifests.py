@@ -11,7 +11,7 @@ import logging
 import yaml
 import urllib3
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ocp_ibmz_install")
 urllib3.disable_warnings()
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -24,7 +24,12 @@ def generate_manifests():
         logger.warning("Couldn't find all the secrets in env, so creating .secrets file for further access")
         logger.warning("Recommended way is to export all the secrets using environment variables")
         secrets_path = BASE_DIR / ".secrets"
-        helpers.write_secrets_file(secrets_path,secrets)
+        exit_code, err = helpers.write_secrets_file(secrets_path, secrets)
+        if exit_code != 0:
+            logger.error("Failed to write .secrets file: %s", err)
+            return
+        logger.debug("Successfully created .secrets file at %s", secrets_path)
+
     if not CONFIG_FILE.exists():
         logger.info(
         "Input configuration file 'inputs.yaml' was not found at %s. "
@@ -59,7 +64,11 @@ def generate_manifests():
     config['machine_network_cidr'] = machine_network_cidr
     config = config | secrets
     
-    config ['ssh_key'] = helpers.generate_ssh_keypair("ocp-ibmz-install")
+    ssh_key = helpers.generate_ssh_keypair("ocp-ibmz-install")
+    if ssh_key is None:
+        logger.error("Failed to generate SSH key pair")
+        return
+    config['ssh_key'] = ssh_key
 
     logger.debug("Rendering install-config.yaml from template")
     exit_code, err = template_renderer.render_template(

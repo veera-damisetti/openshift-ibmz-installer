@@ -7,6 +7,7 @@ import logging
 import requests
 import os
 import cmd.common.helpers as helpers
+import inspect
 
 logger = logging.getLogger("ocp_ibmz_install")
 
@@ -378,10 +379,14 @@ def secrets_reader():
     bastion_username = get_secret("BASTION_USERNAME", "Bastion username:")
     bastion_password = get_secret("BASTION_PASSWORD", "Bastion password:", secret=True)
 
-    pull_secret = get_pull_secret()
+    # run this only for gnerate_manifests, not create_cluster, as pull secret is not needed for create_cluster
+    
+    caller = inspect.stack()[1].function
+    if caller != "cluster":
+        pull_secret = get_pull_secret() 
+        secrets["pull_secret"] = pull_secret
 
     secrets["hmc_username"] = hmc_username
-    secrets["pull_secret"] = pull_secret
     secrets["hmc_password"] = hmc_password
     secrets["ftp_username"] = ftp_username
     secrets["ftp_password"] = ftp_password

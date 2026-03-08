@@ -18,7 +18,7 @@ class RemoteHost:
             logger.debug("SSH client created successfully for host")
         except Exception as e:
             logger.error("Failed to create SSH client: %s", str(e))
-            raise
+            return 1, str(e)
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
             logger.debug("Attempting to connect to %s@host:%d", self.username, self.port)
@@ -34,9 +34,10 @@ class RemoteHost:
             logger.debug("Successfully connected to %s@host:%d", self.username, self.port)
         except Exception as e:
             logger.error("Failed to connect to %s@host:%d: %s", self.username, self.port, str(e))
-            raise
+            return 1, str(e)
 
         self.client = client
+        return 0, ""
 
     def run(self, command, sudo=False):
         if sudo:

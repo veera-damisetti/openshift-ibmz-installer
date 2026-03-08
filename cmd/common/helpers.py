@@ -85,7 +85,7 @@ def generate_ssh_keypair(key_name: str = "ocp-ibmz-install", ssh_dir: str = "~/.
         logger.debug("Ensured SSH directory exists: %s", ssh_dir_path)
     except Exception as e:
         logger.error("Failed to create SSH directory %s: %s", ssh_dir, e)
-        raise
+        return 1,
 
     key_path = ssh_dir_path / key_name
     pub_key_path = key_path.with_suffix(".pub")
@@ -100,7 +100,7 @@ def generate_ssh_keypair(key_name: str = "ocp-ibmz-install", ssh_dir: str = "~/.
             logger.debug("Generated new SSH key pair: %s and %s", key_path, pub_key_path)
         except Exception as e:
             logger.error("Unexpected error while generating SSH key pair: %s", e)
-            raise
+            return None
     else:
         logger.debug("SSH key pair already exists: %s and %s", key_path, pub_key_path)
 
@@ -111,10 +111,10 @@ def generate_ssh_keypair(key_name: str = "ocp-ibmz-install", ssh_dir: str = "~/.
             return pub_key
     except FileNotFoundError:
         logger.error("Public key file not found: %s", pub_key_path)
-        raise
+        return None
     except Exception as e:
         logger.error("Error reading public key %s: %s", pub_key_path, e)
-        raise
+        return None
 
 def write_secrets_file(file_path ,secrets):
     logger.debug("Writing secrets to .secrets file")
@@ -124,5 +124,6 @@ def write_secrets_file(file_path ,secrets):
         logger.debug("Successfully created .secrets file with the secrets")
     except Exception as e:
         logger.error("Error in writing secerts to a file")
-        raise e
+        return 1, str(e)
+    return 0, ""
     
