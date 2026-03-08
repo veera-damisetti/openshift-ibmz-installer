@@ -55,7 +55,7 @@ class ParamFileGenerator:
         if exit_code != 0:
             logger.error("Unable to render the param file from template , %s",err)
             return 1, err
-        logger.debug("Param file generated successfully for node %s at %s", self.dpm_partition.name, cluster_dir / f"{self.dpm_partition.name}_param.yaml")
+        logger.debug("Param file generated successfully for node %s at %s", self.dpm_partition.name, cluster_dir / f"{filename}.param")
         return 0, ""
         
         

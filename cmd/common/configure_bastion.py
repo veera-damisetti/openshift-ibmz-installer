@@ -1,4 +1,5 @@
 import logging
+import os
 logger = logging.getLogger("ocp_ibmz_install")
 from src.remote_connection import RemoteHost
 import cmd.common.helpers as helpers
@@ -86,8 +87,8 @@ def configure_dns(config: dict):
         return 1, err
 
     logger.debug("Added bastion IP as nameserver in /etc/resolv.conf")
-
     remote_host.close()
+
     return 0 , ""
 
 def configure_haproxy(config: dict ):
@@ -141,6 +142,8 @@ def configure_haproxy(config: dict ):
             remote_host.close()
             return 1, "Failed to open port {}".format(port)
     remote_host.close()
+
+
     return 0 , ""
 
 def configure_http_server(config: dict):

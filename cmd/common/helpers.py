@@ -6,6 +6,13 @@ import logging
 
 logger = logging.getLogger("ocp_ibmz_install")
 
+def ipv4_validator(ip):
+    try:
+        ipaddress.IPv4Address(ip)
+        return True
+    except ipaddress.AddressValueError:
+        return False    
+
 def load_config(config_filepath):
     with open(config_filepath, encoding="utf-8") as f:
         return yaml.safe_load(f)

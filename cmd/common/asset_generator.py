@@ -1,3 +1,5 @@
+import os
+
 from src.remote_connection import RemoteHost
 import cmd.common.helpers as helpers
 import logging
@@ -46,8 +48,10 @@ def send_manifests_to_bastion(cluster_name, bastion: RemoteHost):
         if exit_code != 0:
             logger.error("Error in sending %s to bastion host, %s", file, err)
             return 1, err
+    
+        logger.debug("Successfully sent %s to bastion host at %s", file, remote_path)
     return 0, ""
-
+    
 # Install OpenShift client on bastion host to run the openshift-install command for cluster installation and get the live logs to display on terminal
 
 def install_oc_client(version: str, bastion: RemoteHost):
@@ -87,6 +91,15 @@ def run_openshift_install(bastion: RemoteHost, cluster_name: str,version: str):
     if exit_code != 0:
         logger.error("Failed to install nmstate on bastion host, %s", err)
         return 1, err
+
+    # Take back up of agent-config.yaml file and install-config.yaml on bastion only as openshift-install command consumes it and we will miss them.
+    # create a directory in cluster dir and move the files there as backup
+    command = f"mkdir -p $HOME/{cluster_name}/post-install-artifacts && cp $HOME/{cluster_name}/agent-config.yaml $HOME/{cluster_name}/install-config.yaml $HOME/{cluster_name}/post-install-artifacts/"
+    exit_code, out, err = bastion.run(command)
+    if exit_code != 0:
+        logger.error("Failed to back up manifest files on bastion host, %s", err)
+        return 1, err
+    logger.debug("Backed up manifest files successfully on bastion host")
 
     log_level = "info"
     if logger.isEnabledFor(logging.DEBUG):

@@ -2,6 +2,7 @@
 
 import logging
 logger = logging.getLogger("ocp_ibmz_install")
+from pathlib import Path
 
 class FtpConnector:
     def __init__(self, bastion_client, ftp_server_ip, ftp_username, ftp_password):
@@ -26,4 +27,23 @@ class FtpConnector:
             logger.error("Failed to send directory to FTP server: %s", err)
             return 1, f"Failed to send directory to FTP server: {err}"
         logger.debug("Directory sent to FTP server successfully")
+
+        # Remove the local directory after sending to FTP server. 
+
+        command = f"rm -rf {local_dir}"
+        exit_code, out, err = self.bastion_client.run(command)
+        if exit_code != 0:
+            logger.error("Failed to remove local directory after sending to FTP server: %s", err)
+            return 1, f"Failed to remove local directory after sending to FTP server: {err}"
+        logger.debug("Local directory on bastion has been removed successfully after sending to FTP server")
+
+        return 0, ""
+    
+    def clean_ftp_directory(self, remote_dir):
+        command = f'lftp -u {self.ftp_username},{self.ftp_password} ftp://{self.ftp_server_ip} -e "rm -r {remote_dir}; exit"'
+        exit_code, out, err = self.bastion_client.run(command)
+        if exit_code != 0:
+            logger.error("Failed to clean directory on FTP server: %s", err)
+            return 1, f"Failed to clean directory on FTP server: {err}"
+        logger.debug("Directory cleaned on FTP server successfully")
         return 0, ""

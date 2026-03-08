@@ -130,6 +130,12 @@ class RemoteHost:
 
         param_files = [p.strip() for p in out.splitlines() if p.strip()]
 
+        backup_dir = f"{base_dir}/post-install-artifacts/param_files"
+        exit_code, _, err = self.run(f"mkdir -p {backup_dir}")
+        if exit_code != 0:
+            logger.error("Failed to create param backup directory: %s", err)
+            return 1, "Failed to create param files backup directory"
+
         if not param_files:
             logger.error("No .param files found in %s", base_dir)
             return 1, "No param files found"
@@ -181,6 +187,13 @@ class RemoteHost:
                 logger.error("Failed copying param file for %s: %s", param_name, err)
                 return 1, "Failed to copy param file"
 
+            exit_code, _, err = self.run(
+                f"cp {param_path} {backup_dir}/"
+            )
+            if exit_code != 0:
+                logger.error("Failed backing up param file for %s: %s", param_name, err)
+                return 1, "Failed to back up param file"
+            
             exit_code, _, err = self.run(f"rm -f {param_path}")
             if exit_code != 0:
                 logger.error("Failed deleting original param file %s: %s", param_path, err)
@@ -206,6 +219,12 @@ class RemoteHost:
                     return 1, f"Failed to copy artifact: {artifact}"
 
         logger.debug("FTP directory structure created successfully at %s", ftp_dir)
+        exit_code, _, err = self.run(f"rm -rf {base_dir}/boot-artifacts")
+        if exit_code != 0:
+            logger.error("Failed to remove boot-artifacts directory: %s", err)
+            return 1, "Failed to remove boot-artifacts directory"
+        
+        logger.debug("Cleaned up boot-artifacts directory successfully after preparing FTP structure")
 
         return 0, f"FTP structure ready at {ftp_dir}"
     

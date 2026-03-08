@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 from typer import echo
 import urllib3
@@ -162,12 +163,6 @@ def cluster():
         return
     logger.debug("Successfully booted all nodes")
 
-    exit_code, err = boot_manager.wait_for_bootstrap_completion(bastion_client, config['cluster']['name'])
-    if exit_code != 0:
-        logger.error("Error while waiting for bootstrap completion, %s", err)
-        return
-    logger.debug("Bootstrap process completed successfully")
-
     exit_code, err = boot_manager.wait_for_installation_completion(bastion_client, config['cluster']['name'])
     if exit_code != 0:
         logger.error("Error while waiting for installation completion, %s", err)
@@ -221,7 +216,7 @@ def generate_param_files(config,node_type,hmc,bastion_client):
             return 1, f"Failed to send param file for partition {node_partitions[i]} to bastion host: {err}"
         logger.debug("Successfully sent param file for partition %s to bastion host", node_partitions[i])
 
-
-        
+        # delete the param file locally after sending to bastion host , no backup needed
+        os.remove(BASE_DIR / config['cluster']['name'] / f"{hostname_prefix}-{i}.param")
 
     return 0, ""
