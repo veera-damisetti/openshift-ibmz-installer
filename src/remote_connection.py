@@ -131,7 +131,7 @@ class RemoteHost:
 
         param_files = [p.strip() for p in out.splitlines() if p.strip()]
 
-        backup_dir = f"{base_dir}/post-install-artifacts/param_files"
+        backup_dir = f"{base_dir}/post-install-artifacts/.param_files"
         exit_code, _, err = self.run(f"mkdir -p {backup_dir}")
         if exit_code != 0:
             logger.error("Failed to create param backup directory: %s", err)

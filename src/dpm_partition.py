@@ -36,7 +36,7 @@ class DpmPartition():
     
     def start (self):
         if self.get_status() != 'stopped':
-            logger.error("DPM partition %s is in unexpected state %s, expected 'stopped' before starting it.", self.name, self.get_status())
+            logger.debug("DPM partition %s is in unexpected state %s, expected 'stopped' before starting it.", self.name, self.get_status())
             self.stop()
         try:
             logger.debug("Starting DPM partition %s.", self.name)

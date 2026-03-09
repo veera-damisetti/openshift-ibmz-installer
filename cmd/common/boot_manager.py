@@ -31,12 +31,12 @@ def node_boot_orchestrator(config):
         logger.debug(f"Retrieved the list of partitions from HMC console")
 
         for node_type in node_types:
-            logger.debug(f"Starting the boot procedure for {node_type} nodes")
+            logger.info(f"Starting the boot procedure for {node_type} nodes")
             nodes = config['infra']['partitions'][f"{node_type}_nodes"]
             for i in range(len(nodes)):
                 
                 partition = [x for x in partitions if x.properties.get("name") == nodes[i]][0]
-                logger.debug(f"Booting {node_type} node : {node_type}-{i} : {nodes[i]}")
+                logger.info(f"Booting {node_type} node : {node_type}-{i} : {nodes[i]}")
 
                 dpm_partition = DpmPartition(nodes[i], config['infra']['disk_type'], config['infra']['network_type'], partition)
 
@@ -46,10 +46,10 @@ def node_boot_orchestrator(config):
                 if exit_code != 0:  
                     logger.error(f"Failed to boot {node_type} node %s, %s", nodes[i], err)
                     return 1, f"Failed to boot {node_type} node {nodes[i]}: {err}"
-                logger.debug("Successfully booted {node_type} node %s", nodes[i])
-            logger.debug("Completed the boot procedure for {node_type} nodes")
+                logger.info("Successfully booted {node_type} node %s", nodes[i])
+            logger.info("Completed the boot procedure for {node_type} nodes")
 
-        logger.debug("Successfully completed the boot procedure for all nodes")
+        logger.info("Successfully completed the boot procedure for all nodes")
     finally:
         hmc.disconnect()
     return 0, ""

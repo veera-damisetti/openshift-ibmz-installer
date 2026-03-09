@@ -28,7 +28,6 @@ class BastionSetupManager:
             logger.error("SSH client is not connected")
             return 1, "SSH client is not connected"
         
-        logger.debug("Starting the configuration of DNS on bastion")
         logger.debug("Installing named ( bind ) on bastion ")
         exit_code, out, err = self.bastion_client.run("yum install -y bind", sudo=True)
         if exit_code != 0:
@@ -83,7 +82,6 @@ class BastionSetupManager:
         if not self.bastion_client:
             logger.error("SSH client is not connected")
             return 1, "SSH client is not connected" 
-        logger.debug("Starting the configuration of haproxy on bastion")
         logger.debug("Installing HAProxy on bastion host")
         exit_code, out, err = self.bastion_client.run("yum install -y haproxy", sudo=True)
         if exit_code != 0:
@@ -112,7 +110,6 @@ class BastionSetupManager:
             logger.error("Unable to start haproxy %s",str(err))
             return 1 , str(err)
         
-        logger.debug("Successfully Configured HAProxy on bastion")
         logger.debug("Opening required ports for HAProxy on bastion host")
         ports=['80','443','6443','22623']
         for port in ports:

@@ -22,7 +22,7 @@ def download_openshift_installer(version: str,bastion: RemoteHost):
         logger.error("Failed to extract OpenShift installer: %s", err)
         return 1, f"Failed to extract OpenShift installer: {err}"
     
-    logger.debug("OpenShift installer downloaded and extracted successfully")
+    logger.info("OpenShift installer downloaded and extracted successfully")
 
     command = "rm /tmp/openshift-install.tar.gz"
     exit_code, out, err = bastion.run(command)

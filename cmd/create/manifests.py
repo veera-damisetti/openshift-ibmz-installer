@@ -157,7 +157,8 @@ def generate_manifests():
             return    
         logger.debug("agent-config.yaml generated successfully")
         logger.info("Successfully generated agent-config.yaml and install-config.yaml and saved in %s",cluster_dir)
-    return
+    
+    return True
         
 
     session = zhmcclient.Session(

@@ -17,8 +17,11 @@ class HMCClient():
         try:
             self.session = zhmcclient.Session(self.host, self.username, self.password, verify_cert=False)
             self.client = zhmcclient.Client(self.session)
+            console = self.client.consoles.console
+            partitions = console.list_permitted_partitions()
+
             logger.debug("Successfully connected to HMC at %s", self.host)
-        except zhmcclient.Error as e:
+        except Exception as e:
             logger.error("Failed to connect to HMC at %s: %s", self.host, str(e))
             return 1, str(e)
         return 0, ""
@@ -34,16 +37,3 @@ class HMCClient():
                 return 1, str(e)
         return 0, ""
     
-
-
-'''
-session = zhmcclient.Session(
-        config['hmc']['host'], config['hmc']['username'], config['hmc']['password'], verify_cert=False)
-    client = zhmcclient.Client(session)
-    console = client.consoles.console
-
-    node=DpmPartition(config['cluster']['partitions'][0], config['cluster']['disk_type'], config['cluster']['network_type']) 
-    
-    partitions = console.list_permitted_partitions()
-    partition = [x for x in partitions if x.properties.get("name") == config['cluster']['partitions'][0]][0]
-'''

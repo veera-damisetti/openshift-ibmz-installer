@@ -2,7 +2,7 @@ import cmd.common.helpers as helpers
 import logging
 logger = logging.getLogger("ocp_ibmz_install")
 import cmd.common.input_reader as reader
-
+import cmd.common.helpers as helpers
 
 class ConfigValidator:
     def __init__(self, config):
@@ -15,14 +15,22 @@ class ConfigValidator:
         bastion = self.config.get("bastion", {})
         ftp = self.config.get("ftp", {})
 
+        all_ips = []
+
+       # Cluster validations
         name = cluster.get("name")
         if not name:
             self.errors.append("cluster.name is required")
+        elif name != name.lower():
+            self.errors.append("cluster.name must contain only lowercase letters")
 
         base_domain = cluster.get("base_domain")
         if not base_domain:
             self.errors.append("cluster.base_domain is required")
         else:
+            if base_domain != base_domain.lower():
+                self.errors.append("cluster.base_domain must be lowercase")
+
             result = reader.validate_base_domain(base_domain)
             if result is not True:
                 self.errors.append(f"cluster.base_domain invalid: {result}")
@@ -40,12 +48,10 @@ class ConfigValidator:
         if not hmc_host:
             self.errors.append("infra.hmc_host is required")
 
-        disk_type = infra.get("disk_type")
-        if not disk_type:
+        if not infra.get("disk_type"):
             self.errors.append("infra.disk_type is required")
 
-        network_type = infra.get("network_type")
-        if not network_type:
+        if not infra.get("network_type"):
             self.errors.append("infra.network_type is required")
 
         partitions = infra.get("partitions", {})
@@ -57,7 +63,7 @@ class ConfigValidator:
         control_ips = ip_cfg.get("control_nodes", [])
         compute_ips = ip_cfg.get("compute_nodes", [])
 
-        # control node count validation
+        # control node count rule
         if len(control_partitions) not in (1, 3):
             self.errors.append("control_nodes must contain either 1 or 3 partitions")
 
@@ -66,7 +72,7 @@ class ConfigValidator:
                 "control_nodes partition count must equal control_nodes ip count"
             )
 
-        # compute validation
+        # Compute node rules
         if compute_partitions or compute_ips:
             if len(control_partitions) == 1:
                 self.errors.append(
@@ -78,20 +84,26 @@ class ConfigValidator:
                     "compute_nodes partition count must equal compute_nodes ip count"
                 )
 
-        # -------- IP validation --------
+        # IP Validation
         for ip in control_ips:
             if not helpers.ipv4_validator(ip):
                 self.errors.append(f"Invalid control node IP: {ip}")
+            else:
+                all_ips.append(ip)
 
         for ip in compute_ips:
             if not helpers.ipv4_validator(ip):
                 self.errors.append(f"Invalid compute node IP: {ip}")
+            else:
+                all_ips.append(ip)
 
         bastion_ip = bastion.get("ip")
         if not bastion_ip:
             self.errors.append("bastion.ip is required")
         elif not helpers.ipv4_validator(bastion_ip):
             self.errors.append("bastion.ip must be a valid IPv4")
+        else:
+            all_ips.append(bastion_ip)
 
         ftp_host = ftp.get("host")
         if not ftp_host:
@@ -99,4 +111,19 @@ class ConfigValidator:
         elif not helpers.ipv4_validator(ftp_host):
             self.errors.append("ftp.host must be a valid IPv4")
 
-        return len(self.errors) == 0 , self.errors
+        # Duplicate IP rule
+        if len(all_ips) != len(set(all_ips)):
+            self.errors.append("Duplicate IPs found across control, compute, and bastion nodes")
+
+        # Subnet consistency rule
+        if all_ips:
+            first_two = ".".join(all_ips[0].split(".")[:2])
+
+            for ip in all_ips:
+                if ".".join(ip.split(".")[:2]) != first_two:
+                    self.errors.append(
+                        "All control, compute, and bastion IPs must be in the same network (first two octets must match)"
+                    )
+                    break
+
+        return len(self.errors) == 0, self.errors

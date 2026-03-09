@@ -68,14 +68,16 @@ class ClusterDeprovisioner:
             exit_code, _, err = bastion_client.run(f"yum remove -y {service}", sudo=True)
             if exit_code != 0:
                 logger.error(f"Failed to remove service {service}: %s", err)
+                return 1, f"Failed to remove service {service}: {err}"
             else:   
                 logger.debug(f"Successfully removed service {service}") 
             
         for file in files:
             logger.debug(f"Removing file {file} from bastion host")
-            exit_code, _,err = bastion_client.run(f"rm -f {file}", sudo=True)
+            exit_code, _,err = bastion_client.run(f"rm -rf {file}", sudo=True)
             if exit_code != 0:
                 logger.error(f"Failed to remove file {file}: %s", err)
+                return 1, f"Failed to remove file {file}: {err}"
             else:
                 logger.debug(f"Successfully removed file {file}")
 
