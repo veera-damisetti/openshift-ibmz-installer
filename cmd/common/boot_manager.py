@@ -52,7 +52,6 @@ def node_boot_orchestrator(config):
         logger.debug("Successfully completed the boot procedure for all nodes")
     finally:
         hmc.disconnect()
-        logger.debug("Disconnected from HMC")
     return 0, ""
 
 def wait_for_installation_completion(bastion_client, cluster_name: str):

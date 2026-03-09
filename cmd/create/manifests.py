@@ -10,6 +10,8 @@ import zhmcclient
 import logging
 import yaml
 import urllib3
+from src.authentication_validator import AuthenticationValidator
+from src.config_validator import ConfigValidator
 
 logger = logging.getLogger("ocp_ibmz_install")
 urllib3.disable_warnings()
@@ -19,7 +21,6 @@ CONFIG_FILE = BASE_DIR / "inputs.yaml"
 
 def generate_manifests():
     secrets , found_in_env = common.secrets_reader()
-    print(found_in_env)
     if not found_in_env: 
         logger.warning("Couldn't find all the secrets in env, so creating .secrets file for further access")
         logger.warning("Recommended way is to export all the secrets using environment variables")
@@ -36,17 +37,47 @@ def generate_manifests():
         "Switching to interactive mode to collect user inputs.",BASE_DIR,
         )
         common.input_reader()
-    
-    logger.info(
-        "Input configuration file 'inputs.yaml' found at %s. "
-        "Loading configuration from file.", BASE_DIR,
-    )
-    config = helpers.load_config(CONFIG_FILE)
+        config = helpers.load_config(CONFIG_FILE)
+    else:
+        logger.info(
+            "Input configuration file 'inputs.yaml' found at %s. "
+            "Loading configuration from file.", BASE_DIR,
+        )
+        # Validating the loaded configuration for mandatory fields and correct formats
+        config = helpers.load_config(CONFIG_FILE)
+        logger.info("Validating the inputs.yaml configuration for mandatory fields and correct formats")
+        config_validator = ConfigValidator(config)
+        is_valid, errors = config_validator.validate()
+        if not is_valid:
+            for error in errors:
+                logger.error("Invalid configuration in inputs.yaml : %s", error)
+            return
+        logger.info("Configuration validation successful, proceeding with manifest generation")
+        
     logger.debug("Configuration loaded")
+    config = config | secrets
     
     cluster_name = config["cluster"]["name"]
     cluster_dir = BASE_DIR / cluster_name
     cluster_dir.mkdir(parents=True, exist_ok=True)
+
+    logger.info("Validating the provided credentials for bastion host, HMC and FTP server access")
+    authentication_validator = AuthenticationValidator(config)
+    if not authentication_validator.valid_ssh_credentials():
+        logger.error("SSH authentication validation failed for bastion host. Please check the credentials and try again.")
+        return
+    logger.debug("SSH authentication to bastion host validated successfully")
+
+    if not authentication_validator.valid_hmc_credentials():
+        logger.error("HMC authentication validation failed. Please check the credentials and try again.")
+        return
+    logger.debug("Authentication to HMC validated successfully")    
+
+    if not authentication_validator.valid_ftp_credentials():
+        logger.error("FTP authentication validation failed. Please check the credentials and try again.")
+        return
+    logger.debug("FTP authentication to bastion host validated successfully")
+    logger.info("All provided credentials are valid")
 
     installation_method = 'ABI'
     if len(config['infra']['partitions']['compute_nodes']) > 0 :
@@ -62,7 +93,6 @@ def generate_manifests():
     all_ips = config['infra']['ip']['control_nodes']+config['infra']['ip']['compute_nodes'] + [config['bastion']['ip']]
     machine_network_cidr = helpers.get_cidr(all_ips)
     config['machine_network_cidr'] = machine_network_cidr
-    config = config | secrets
     
     ssh_key = helpers.generate_ssh_keypair("ocp-ibmz-install")
     if ssh_key is None:

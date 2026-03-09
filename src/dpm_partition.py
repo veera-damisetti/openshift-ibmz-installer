@@ -35,12 +35,11 @@ class DpmPartition():
         return 0, ""
     
     def start (self):
-        logger.debug("Starting DPM partition %s.", self.name)
-        if self.get_status() == 'active':
-            logger.debug("DPM partition %s is already active.", self.name)
-            logger.debug("Stopping DPM partition %s before starting it again.", self.name)
+        if self.get_status() != 'stopped':
+            logger.error("DPM partition %s is in unexpected state %s, expected 'stopped' before starting it.", self.name, self.get_status())
             self.stop()
         try:
+            logger.debug("Starting DPM partition %s.", self.name)
             self.partition.start(wait_for_completion=True)
             logger.debug("DPM partition %s started successfully.", self.name)
             return 0, ""
@@ -179,3 +178,20 @@ class DpmPartition():
             logger.error("Error retrieving cpu and memory information for DPM partition %s: %s", self.name, str(e))
             return None
         return partition_info
+    
+    def reset_boot_configuration(self):
+        logger.debug("Resetting boot configuration for DPM partition %s.", self.name)
+        boot_params = {
+        'boot-device': 'ftp',
+        'boot-ftp-host': 'test',
+        'boot-ftp-username': 'test',
+        'boot-ftp-password': 'test',
+        'boot-ftp-insfile': 'test',
+        }
+        try:
+            self.partition.update_properties(boot_params)
+            logger.debug("Boot configuration reset for DPM partition %s.", self.name)
+            return 0, ""
+        except zhmcclient.Error as e:
+            logger.error("Error resetting boot configuration for DPM partition %s: %s", self.name, str(e))
+            return 1, str(e)

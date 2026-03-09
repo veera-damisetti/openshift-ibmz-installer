@@ -379,10 +379,9 @@ def secrets_reader():
     bastion_username = get_secret("BASTION_USERNAME", "Bastion username:")
     bastion_password = get_secret("BASTION_PASSWORD", "Bastion password:", secret=True)
 
-    # run this only for gnerate_manifests, not create_cluster, as pull secret is not needed for create_cluster
     
     caller = inspect.stack()[1].function
-    if caller != "cluster":
+    if caller not in ["cluster", "destroy_cluster"]:
         pull_secret = get_pull_secret() 
         secrets["pull_secret"] = pull_secret
 

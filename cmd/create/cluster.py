@@ -1,6 +1,5 @@
 import logging
 import os
-import sys
 import time
 from datetime import datetime
 from typer import echo
@@ -17,6 +16,7 @@ from src.ftp_connector import FtpConnector
 import cmd.common.boot_manager as boot_manager
 import cmd.common.post_install_runner as post_install_runner
 from src.bastion_setup_manager import BastionSetupManager
+import cmd.create.manifests as manifests
 
 
 logger = logging.getLogger("ocp_ibmz_install")
@@ -33,11 +33,11 @@ def cluster():
     logger.debug("Looking for input configuration file at %s", CONFIG_FILE)
     
     if not CONFIG_FILE.exists():
-        logger.error(
+        logger.warning(
         "Input configuration file 'inputs.yaml' was not found at %s. "
-        "Please run manifests creation step before starting this step",BASE_DIR,
+        "Starting manifests generation process", BASE_DIR,
         )
-        return
+        manifests.generate_manifests()
 
     logger.info(
             "Input configuration file 'inputs.yaml' found at %s. "
@@ -50,8 +50,10 @@ def cluster():
 
     logger.info("Looking for agent-config.yaml and install-config.yaml under %s",BASE_DIR)
     if not (configs_dir / "agent-config.yaml").exists() or not (configs_dir / "install-config.yaml").exists():
-        logger.error("Required manifests not found, please create manifests before starting the cluster installation")
-        return
+        logger.warning("Required manifests not found," \
+        "Starting manifests generation process to create agent-config.yaml and install-config.yaml")
+        manifests.generate_manifests()
+
     logger.debug("Consuming agent-config.yaml and install-config.yaml from %s",configs_dir)
     logger.debug("Loading secrets")
     secrets_file = Path(BASE_DIR) / ".secrets"
@@ -60,7 +62,7 @@ def cluster():
         logger.warning("Recommended way is to export all the secrets using environment variables")
         secrets=helpers.load_config(secrets_file)
     else:
-        secrets, x =reader.secrets_reader()
+        secrets, x = reader.secrets_reader()
 
 
     config = config | secrets
@@ -195,15 +197,15 @@ def cluster():
         logger.debug("Closing SSH connection to bastion host")
         bastion_client.close()
 
-    # Logging the end time and total execution time
-    end_time = time.time()
-    end_timestamp = datetime.now()
-    elapsed = end_time - start_time
-    mins, secs = divmod(elapsed, 60)
+        # Logging the end time and total execution time
+        end_time = time.time()
+        end_timestamp = datetime.now()
+        elapsed = end_time - start_time
+        mins, secs = divmod(elapsed, 60)
+        logger.debug(f"Total execution time: {int(mins)} min {int(secs)} sec")
+
 
     logger.debug(f"Installation finished at: {end_timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
-    logger.debug(f"Total execution time: {int(mins)} min {int(secs)} sec")
-
     return
     
 
