@@ -217,10 +217,10 @@ def cluster():
         end_timestamp = datetime.now()
         elapsed = end_time - start_time
         mins, secs = divmod(elapsed, 60)
-        logger.debug(f"Total execution time: {int(mins)} min {int(secs)} sec")
+        logger.info(f"Total execution time: {int(mins)} min {int(secs)} sec")
 
 
-    logger.debug(f"Installation finished at: {end_timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"Installation finished at: {end_timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
     return
     
 

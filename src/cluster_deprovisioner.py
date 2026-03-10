@@ -31,15 +31,15 @@ class ClusterDeprovisioner:
                 partition = [x for x in partitions if x.properties.get("name") == node][0]
                 logger.debug(f"Resetting boot configuration for node : {node}")
                 dpm_partition = DpmPartition(node, self.config['infra']['disk_type'], self.config['infra']['network_type'], partition)
+                dpm_partition.stop()
                 exit_code, err = dpm_partition.reset_boot_configuration()
                 if exit_code != 0:
                     logger.error(f"Failed to reset boot configuration for node %s, %s", node, err)
                 else:
                     logger.debug(f"Successfully reset boot configuration for node %s", node)
-                
-                dpm_partition.stop()
         finally:
             hmc.disconnect()
+            logger.info("Disconnected from HMC")
         return 0, ""
     
     def ftp_cleanup(self, bastion_client):
