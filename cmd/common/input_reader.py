@@ -364,7 +364,7 @@ def input_reader():
         # FTP host validation 
 
         ftp_host = questionary.text(
-            "FTP host:",
+            "FTP Server IP:",
             validate=lambda x: (
                 "FTP host is required"
                 if not x.strip()
