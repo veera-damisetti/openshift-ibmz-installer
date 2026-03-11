@@ -1,10 +1,52 @@
 import ipaddress 
 import subprocess
 from pathlib import Path
+import yaml
 import logging
+
 logger = logging.getLogger("ocp_ibmz_install")
 
+def ipv4_validator(ip):
+    try:
+        ipaddress.IPv4Address(ip)
+        return True
+    except ipaddress.AddressValueError:
+        return False    
+
+def load_config(config_filepath):
+    with open(config_filepath, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+def get_basepath():
+    base_dir = Path(__file__).resolve().parents[2]
+    return base_dir
+
 def get_cidr(ip_list):
+    # update this function just to find the cidr by keeping first 2 octets fixed and varying last 2 octets to accomodate all ips in the list, as in most of the cases the machines will be in same rack and will have same first 2 octets
+
+    if not ip_list:
+        return None
+    
+    # Convert strings to IP objects and find the bounds
+    ips = sorted([ipaddress.IPv4Address(ip) for ip in ip_list])
+    min_ip = int(ips[0])
+    max_ip = int(ips[-1])
+    # Find the first bit where the min and max differ
+    # XOR shows the differing bits
+    diff = min_ip ^ max_ip  
+    # The length of the common prefix is 32 minus the position
+    # of the most significant bit that differs
+    if diff == 0:
+        prefix_len = 32
+    else:
+        prefix_len = 32 - diff.bit_length()
+    # For simplicity, we can assume that the first 2 octets are fixed and vary the last 2 octets to accommodate all IPs in the list
+    prefix_len = min(prefix_len, 16)  # Ensure that we don't go beyond /16
+    network = ipaddress.IPv4Network((ips[0], prefix_len), strict=False)                 
+    return str(network)
+
+    # Not using the below logic for now,  as it can give very minimal cidr which may not be practical for the cluster network, as we might add more machines in future
+
     """
     Takes a list of IP strings and returns the smallest CIDR 
     that contains all of them.
@@ -43,7 +85,7 @@ def generate_ssh_keypair(key_name: str = "ocp-ibmz-install", ssh_dir: str = "~/.
         logger.debug("Ensured SSH directory exists: %s", ssh_dir_path)
     except Exception as e:
         logger.error("Failed to create SSH directory %s: %s", ssh_dir, e)
-        raise
+        return 1,
 
     key_path = ssh_dir_path / key_name
     pub_key_path = key_path.with_suffix(".pub")
@@ -58,7 +100,7 @@ def generate_ssh_keypair(key_name: str = "ocp-ibmz-install", ssh_dir: str = "~/.
             logger.debug("Generated new SSH key pair: %s and %s", key_path, pub_key_path)
         except Exception as e:
             logger.error("Unexpected error while generating SSH key pair: %s", e)
-            raise
+            return None
     else:
         logger.debug("SSH key pair already exists: %s and %s", key_path, pub_key_path)
 
@@ -69,7 +111,19 @@ def generate_ssh_keypair(key_name: str = "ocp-ibmz-install", ssh_dir: str = "~/.
             return pub_key
     except FileNotFoundError:
         logger.error("Public key file not found: %s", pub_key_path)
-        raise
+        return None
     except Exception as e:
         logger.error("Error reading public key %s: %s", pub_key_path, e)
-        raise
+        return None
+
+def write_secrets_file(file_path ,secrets):
+    logger.debug("Writing secrets to .secrets file")
+    try:
+        with file_path.open("w") as f:
+            yaml.dump(secrets, f, default_flow_style=False)
+        logger.debug("Successfully created .secrets file with the secrets")
+    except Exception as e:
+        logger.error("Error in writing secerts to a file")
+        return 1, str(e)
+    return 0, ""
+    

@@ -4,12 +4,12 @@ controlPlane:
   architecture: s390x
   hyperthreading: Enabled
   name: master
-  replicas: {{ infra.partitions.control_plane | length }}
+  replicas: {{ infra.partitions.control_nodes | length }}
 compute:
 - architecture: s390x
   hyperthreading: Enabled
   name: worker
-  replicas: {{ infra.partitions.data_plane | length }}             
+  replicas: {{ infra.partitions.compute_nodes | length }}             
 metadata:
   name: {{ cluster.name }}  # Cluster Name
 networking:
@@ -23,7 +23,3 @@ networking:
   - 172.30.0.0/16
 platform:
   none: {}
-pullSecret: > # Pull Secret that needs to be copied from console.redhat.com/openshift/install/pull-secret 
-  '{{ pull_secret }}'
-sshKey: > # SSH Key , this will be used while bringing up all the OCP Nodes
-  '{{ ssh_key }}'

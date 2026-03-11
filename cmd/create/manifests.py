@@ -1,42 +1,86 @@
+import json
+
 from src.dpm_partition import DpmPartition
 from src.remote_connection import RemoteHost
 import cmd.common.helpers as helpers
 import  cmd.common.template_renderer as template_renderer
 import cmd.common.input_reader as common
 from pathlib import Path
-import yaml
 import zhmcclient
 import logging
+import yaml
 import urllib3
+from src.authentication_validator import AuthenticationValidator
+from src.config_validator import ConfigValidator
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ocp_ibmz_install")
 urllib3.disable_warnings()
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 CONFIG_FILE = BASE_DIR / "inputs.yaml"
 
 def generate_manifests():
-    secrets = common.secrets_reader()
+    secrets , found_in_env = common.secrets_reader()
+    if not found_in_env: 
+        logger.warning("Couldn't find all the secrets in env, so creating .secrets file for further access")
+        logger.warning("Recommended way is to export all the secrets using environment variables")
+        secrets_path = BASE_DIR / ".secrets"
+        exit_code, err = helpers.write_secrets_file(secrets_path, secrets)
+        if exit_code != 0:
+            logger.error("Failed to write .secrets file: %s", err)
+            return
+        logger.debug("Successfully created .secrets file at %s", secrets_path)
+
     if not CONFIG_FILE.exists():
         logger.info(
         "Input configuration file 'inputs.yaml' was not found at %s. "
         "Switching to interactive mode to collect user inputs.",BASE_DIR,
         )
         common.input_reader()
+        config = helpers.load_config(CONFIG_FILE)
     else:
         logger.info(
             "Input configuration file 'inputs.yaml' found at %s. "
             "Loading configuration from file.", BASE_DIR,
         )
-        config = load_config(CONFIG_FILE)
-        logger.debug("Configuration loaded")
+        # Validating the loaded configuration for mandatory fields and correct formats
+        config = helpers.load_config(CONFIG_FILE)
+        logger.info("Validating the inputs.yaml configuration for mandatory fields and correct formats")
+        config_validator = ConfigValidator(config)
+        is_valid, errors = config_validator.validate()
+        if not is_valid:
+            for error in errors:
+                logger.error("Invalid configuration in inputs.yaml : %s", error)
+            return
+        logger.info("Configuration validation successful, proceeding with manifest generation")
+        
+    logger.debug("Configuration loaded")
+    config = config | secrets
     
     cluster_name = config["cluster"]["name"]
     cluster_dir = BASE_DIR / cluster_name
     cluster_dir.mkdir(parents=True, exist_ok=True)
 
+    logger.info("Validating the provided credentials for bastion host, HMC and FTP server access")
+    authentication_validator = AuthenticationValidator(config)
+    if not authentication_validator.valid_ssh_credentials():
+        logger.error("SSH authentication validation failed for bastion host. Please check the credentials and try again.")
+        return
+    logger.debug("SSH authentication to bastion host validated successfully")
+
+    if not authentication_validator.valid_hmc_credentials():
+        logger.error("HMC authentication validation failed. Please check the credentials and try again.")
+        return
+    logger.debug("Authentication to HMC validated successfully")    
+
+    if not authentication_validator.valid_ftp_credentials():
+        logger.error("FTP authentication validation failed. Please check the credentials and try again.")
+        return
+    logger.debug("FTP authentication to bastion host validated successfully")
+    logger.info("All provided credentials are valid")
+
     installation_method = 'ABI'
-    if len(config['infra']['partitions']['data_plane']) > 0 :
+    if len(config['infra']['partitions']['compute_nodes']) > 0 :
         installation_method = 'UPI'
         logger.debug("Using User-Provisioned Infrastructure ( UPI ) as Installation mode")
     else:
@@ -46,42 +90,75 @@ def generate_manifests():
 
     logger.debug("Creating install-config.yaml")
     logger.debug("Caluculating machine network CIDR based on Node IPs")
-    all_ips = config['infra']['ip']['control_plane']+config['infra']['ip']['data_plane'] + [config['bastion']['ip']]
+    all_ips = config['infra']['ip']['control_nodes']+config['infra']['ip']['compute_nodes'] + [config['bastion']['ip']]
     machine_network_cidr = helpers.get_cidr(all_ips)
     config['machine_network_cidr'] = machine_network_cidr
-    config = config | secrets
     
-    config ['ssh_key'] = helpers.generate_ssh_keypair("ocp-ibmz-install")
+    ssh_key = helpers.generate_ssh_keypair("ocp-ibmz-install")
+    if ssh_key is None:
+        logger.error("Failed to generate SSH key pair")
+        return
+    config['ssh_key'] = ssh_key
 
     logger.debug("Rendering install-config.yaml from template")
-    try:
-        template_renderer.render_template(
+    exit_code, err = template_renderer.render_template(
                 template_name="install-config.yaml.template",
                 output_path=Path(cluster_dir / "install-config.yaml"),
                 config=config,
         )
-    except:
-        logger.error("Unabled to render the install-config.yaml from template")
-        return    
+    if exit_code != 0:
+        logger.error("Unable to render the install-config.yaml from template , %s",err)
+        return 
     
+    logger.debug("Adding pullSecret and sshKey to install-config.yaml")
+    install_config_path = cluster_dir / "install-config.yaml"
+    try:
+        # Load generated YAML
+        with open(install_config_path, "r") as f:
+            install_config = yaml.safe_load(f)
+       
+        pull_secret_clean = json.dumps(
+        json.loads(config["pull_secret"]),
+        separators=(",", ":")
+        )
+
+        install_config["pullSecret"] = pull_secret_clean
+        install_config['sshKey'] = config['ssh_key']
+
+        # Write back
+        with open(install_config_path, "w") as f:
+            yaml.dump(
+                install_config,
+                f,
+                default_flow_style=False,
+                sort_keys=False,
+                indent=2
+            )
+
+        logger.debug("pullSecret and sshKey added to install-config.yaml successfully")
+
+    except Exception as e:
+        logger.error("Failed to update pullSecret in install-config.yaml: %s", e)
+        return
+
     logger.debug("install-config.yaml generated successfully")
 
     if installation_method == 'ABI':
         logger.debug("Creating agent-config.yaml")
-        try:
-            logger.debug("Rendering agent-config.yaml from template")
-            template_renderer.render_template(
+        
+        logger.debug("Rendering agent-config.yaml from template")
+        exit_code, err = template_renderer.render_template(
                 template_name="agent-config.yaml.template", 
                 output_path=Path(cluster_dir / "agent-config.yaml"),
                 config=config,
             )
-        except:
-            logger.error("Unabled to render the agent-config.yaml from template")
+        if exit_code != 0:
+            logger.error("Unable to render the agent-config.yaml from template , %s",err)
             return    
         logger.debug("agent-config.yaml generated successfully")
         logger.info("Successfully generated agent-config.yaml and install-config.yaml and saved in %s",cluster_dir)
     
-    return
+    return True
         
 
     session = zhmcclient.Session(
@@ -110,6 +187,3 @@ def generate_manifests():
 
     
     
-def load_config(config_filepath):
-    with open(config_filepath, encoding="utf-8") as f:
-        return yaml.safe_load(f)
