@@ -7,6 +7,8 @@ import typer
 import cmd.create as create
 import cmd.delete as delete
 from pathlib import Path
+import warnings
+
 
 # Set up logging to file
 LOG_DIR = Path(__file__).parent
@@ -21,6 +23,7 @@ file_formatter = logging.Formatter(
 )
 file_handler.setFormatter(file_formatter)
 logger.addHandler(file_handler)
+warnings.filterwarnings("ignore", message="urllib3 v2 only supports OpenSSL")
 
 # CLI root
 
