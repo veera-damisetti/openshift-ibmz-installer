@@ -44,10 +44,10 @@ def node_boot_orchestrator(config):
 
                 exit_code, err = boot_manager.boot_partition()
                 if exit_code != 0:  
-                    logger.error(f"Failed to boot {node_type} node %s, %s", nodes[i], err)
+                    logger.error(f"Failed to boot {node_type} node {nodes[i]}, {err}")
                     return 1, f"Failed to boot {node_type} node {nodes[i]}: {err}"
-                logger.info("Successfully booted {node_type} node %s", nodes[i])
-            logger.info("Completed the boot procedure for {node_type} nodes")
+                logger.info(f"Successfully booted {node_type} node {nodes[i]}")
+            logger.info(f"Completed the boot procedure for {node_type} nodes")
 
         logger.info("Successfully completed the boot procedure for all nodes")
     finally:

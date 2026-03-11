@@ -1,6 +1,6 @@
 # OpenShift IBM Z Installer
 
-This project provides a CLI (**ocp-ibmz-install**) for deploying **Red Hat OpenShift Container Platform** on **IBM zSystems / LinuxONE** (s390x) with **Dynamic Partition Manager (DPM) LPARs** as cluster nodes.
+This project provides a CLI ( **ocp-ibmz-install** ) for deploying **Red Hat OpenShift Container Platform** on **IBM zSystems / LinuxONE** (s390x) with **Dynamic Partition Manager (DPM) LPARs** as cluster nodes.
 You provide a configuration file, and the CLI generates the required installation manifests and orchestrates the cluster lifecycle, including creation and teardown.
 
 

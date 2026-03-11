@@ -132,7 +132,7 @@ def cluster():
             return
         logger.info("Successfully sent manifests to bastion host to begin the cluster installation")
 
-        logger.info("Starting the asset generation by running openshift-install")
+        logger.info("Starting the asset generation by running openshift-install, this might take around 5-10 minutes")
         exit_code, err = asset_generator.run_openshift_install(bastion_client, config['cluster']['name'], config['cluster']['version'])
         if exit_code != 0:
             logger.error("Failed to run OpenShift Installer to generate boot artifacts, %s", err)
@@ -195,6 +195,7 @@ def cluster():
             return
         logger.debug("Successfully booted all nodes")
 
+        logger.info("Waiting for cluster installation to complete...")
         exit_code, err = boot_manager.wait_for_installation_completion(bastion_client, config['cluster']['name'])
         if exit_code != 0:
             logger.error("Error while waiting for installation completion, %s", err)

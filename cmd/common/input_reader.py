@@ -17,7 +17,7 @@ STYLE = Style([
     ("pointer", "fg:#74ff00 bold"),
     ("highlighted", "fg:#74ff00 bold"),
     ("selected", "fg:#74ff00"),
-    ("answer", "fg:#fcff00 bold"),
+    ("answer", "fg:#4dff4d"),
 ])
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
