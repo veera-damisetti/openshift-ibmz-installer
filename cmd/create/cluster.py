@@ -17,6 +17,7 @@ import cmd.common.boot_manager as boot_manager
 import cmd.common.post_install_runner as post_install_runner
 from src.bastion_setup_manager import BastionSetupManager
 import cmd.create.manifests as manifests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 logger = logging.getLogger("ocp_ibmz_install")
@@ -119,6 +120,7 @@ def cluster():
             logger.error("Failed to configure HTTP server on bastion host, %s", err)
             return
         logger.info("Successfully configured HTTP server on bastion host")
+        
         logger.info("Successfully configured bastion host for cluster installation")
 
 
@@ -133,46 +135,30 @@ def cluster():
         logger.info("Successfully sent manifests to bastion host to begin the cluster installation")
 
         logger.info("Starting the asset generation by running openshift-install, this might take around 5-10 minutes")
-        exit_code, err = asset_generator.run_openshift_install(bastion_client, config['cluster']['name'], config['cluster']['version'])
-        if exit_code != 0:
-            logger.error("Failed to run OpenShift Installer to generate boot artifacts, %s", err)
-            return
-        logger.info("Successfully created boot-artifacts using openshift-install")
+        
+        with ThreadPoolExecutor(max_workers=2) as executor:
 
-        exit_code, err = asset_generator.copy_rootfs_to_webserver_path(f"{bastion_client.run('echo $HOME')[1].strip()}/{config['cluster']['name']}/boot-artifacts/agent.s390x-rootfs.img", bastion_client)
-        if exit_code != 0:
-            logger.error("Failed to copy rootfs image to webserver path on bastion host, %s", err)
-            return
-        logger.debug("Successfully copied rootfs image to webserver path on bastion host")
+            futures = {
+                executor.submit(generate_boot_artifacts, config, bastion_client): "boot_artifacts",
+                executor.submit(generate_paramfiles_from_hmc, config, bastion_client): "param_files",
+            }
 
+            for future in as_completed(futures):
+                task = futures[future]
 
-        logger.info("Connecting to HMC for fetching partition details to prepare param files")
-        hmc=HMCClient(config['infra']['hmc_host'], config['hmc_username'], config['hmc_password'])
-        exit_code, err = hmc.connect()
-        if exit_code != 0:
-            logger.error("Failed to connect to HMC, %s", err)
-            return  
-        logger.info("Connected to HMC")
-        try:
-            logger.debug("Starting the param file generation for each control plane node")
-            exit_code, err = generate_param_files(config,'control_nodes',hmc,bastion_client)
-            if exit_code != 0:
-                logger.error("Failed to generate param files for control plane nodes, %s", err)
-                return
-            logger.info("Successfully generated param files for control plane nodes")
-            if len(config['infra']['partitions']['compute_nodes']) > 0:
-                logger.debug("Starting the param file generation for each compute node")
-                exit_code, err = generate_param_files(config,'compute_nodes',hmc,bastion_client)
+                exit_code, err = future.result()
+
                 if exit_code != 0:
-                    logger.error("Failed to generate param files for compute nodes, %s", err)
+                    if task == "boot_artifacts":
+                        logger.error("Failed to generate boot artifacts, %s", err)
+                    else:
+                        logger.error("Failed to generate param files, %s", err)
                     return
-                logger.info("Successfully generated param files for compute nodes")
-            else:
-                logger.info("No compute nodes defined in configuration, skipping param file generation for compute nodes")
-        finally:    
-            hmc.disconnect()
-            logger.info("Disconnected from HMC")
 
+                if task == "boot_artifacts":
+                    logger.info("Successfully generated boot artifacts using openshift-install")
+                else:
+                    logger.info("Successfully generated and sent param files for all nodes to bastion host")
 
         exit_code, err = bastion_client.prepare_ftp_structure(f"{bastion_client.run('echo $HOME')[1].strip()}/{config['cluster']['name']}")  
         if exit_code != 0:
@@ -224,6 +210,66 @@ def cluster():
     logger.info(f"Installation finished at: {end_timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
     return
     
+def generate_boot_artifacts(config, bastion_client):
+    
+    exit_code, err = asset_generator.run_openshift_install(
+        bastion_client,
+        config['cluster']['name'],
+        config['cluster']['version']
+    )
+    if exit_code != 0:
+        return 1, f"Failed to run OpenShift Installer: {err}"
+
+    logger.info("Successfully created boot-artifacts using openshift-install")
+
+    exit_code, err = asset_generator.copy_rootfs_to_webserver_path(
+        f"{bastion_client.run('echo $HOME')[1].strip()}/{config['cluster']['name']}/boot-artifacts/agent.s390x-rootfs.img",
+        bastion_client
+    )
+
+    if exit_code != 0:
+        return 1, f"Failed to copy rootfs image: {err}"
+
+    logger.debug("Successfully copied rootfs image to webserver path on bastion host")
+
+    return 0, ""
+
+
+def generate_paramfiles_from_hmc(config, bastion_client):
+    logger.info("Connecting to HMC for fetching partition details to prepare param files")
+    hmc = HMCClient(
+        config['infra']['hmc_host'],
+        config['hmc_username'],
+        config['hmc_password']
+    )
+    exit_code, err = hmc.connect()
+    if exit_code != 0:
+        return 1, f"Failed to connect to HMC: {err}"
+    logger.info("Connected to HMC")
+    try:
+        logger.debug("Starting the param file generation for each control plane node")
+        exit_code, err = generate_param_files(config, 'control_nodes', hmc, bastion_client)
+        if exit_code != 0:
+            return 1, err
+        logger.info("Successfully generated param files for control plane nodes")
+
+        if len(config['infra']['partitions']['compute_nodes']) > 0:
+            logger.debug("Starting the param file generation for each compute node")
+            exit_code, err = generate_param_files(config, 'compute_nodes', hmc, bastion_client)
+            if exit_code != 0:
+                return 1, err
+
+            logger.info("Successfully generated param files for compute nodes")
+
+        else:
+            logger.info("No compute nodes defined in configuration, skipping param file generation")
+
+    finally:
+        hmc.disconnect()
+        logger.info("Disconnected from HMC")
+
+    return 0, ""
+
 
 def generate_param_files(config,node_type,hmc,bastion_client):
     if node_type == "control_nodes":

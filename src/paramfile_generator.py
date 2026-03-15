@@ -7,20 +7,7 @@ from pathlib import Path
 import cmd.common.helpers as helpers
 from src.dpm_partition import DpmPartition
 
-'''
-node_config = {
-    "cluster_name": "test-cluster",
-    "base_domain": "example.com",
-    "disk_type": "fcp",
-    "network_type": "sriov",
-    ip: "",
-    gateway: "",
-    hostname: "",
-    disk_info: {},
-    network_info: "",
-    bastion_ip: "",
-}
-'''
+
 class ParamFileGenerator:
     def __init__(self, dpm_partition, node_config):
         self.dpm_partition = dpm_partition
@@ -46,6 +33,9 @@ class ParamFileGenerator:
             return 1, "Failed to retrieve storage or network information"
         self.node_config['disk_info'] = storage_info
         self.node_config['network_info'] = network_info
+        if self.node_config['network_type'].lower() == 'roce':
+            roce_nic = str(int(network_info, 16))
+            self.node_config['network_info'] = roce_nic
         cluster_dir = helpers.get_basepath() / self.node_config['cluster_name']
         exit_code, err = template_renderer.render_template(
                 template_name="paramfiles/paramfile.param.template",

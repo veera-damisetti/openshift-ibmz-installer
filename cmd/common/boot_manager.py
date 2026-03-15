@@ -5,9 +5,8 @@ logger = logging.getLogger("ocp_ibmz_install")
 from src.dpm_partition import DpmPartition
 from src.hmc import HMCClient
 from src.boot_manager import BootManager
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-
-#function to handle booting part for all nodes, in parallel using threadpoolexecutor, takes config as input and uses the details under infra section to connect to HMC and boot the nodes using BootManager class
 
 def node_boot_orchestrator(config):
     hmc=HMCClient(config['infra']['hmc_host'], config['hmc_username'], config['hmc_password'])
@@ -33,25 +32,42 @@ def node_boot_orchestrator(config):
         for node_type in node_types:
             logger.info(f"Starting the boot procedure for {node_type} nodes")
             nodes = config['infra']['partitions'][f"{node_type}_nodes"]
-            for i in range(len(nodes)):
-                
-                partition = [x for x in partitions if x.properties.get("name") == nodes[i]][0]
-                logger.info(f"Booting {node_type} node : {node_type}-{i} : {nodes[i]}")
 
-                dpm_partition = DpmPartition(nodes[i], config['infra']['disk_type'], config['infra']['network_type'], partition)
+            with ThreadPoolExecutor(max_workers=len(nodes)) as executor:
+                futures = []
 
-                boot_manager = BootManager(hmc, dpm_partition, config['ftp']['host'], config['ftp_username'], config['ftp_password'], config['cluster']['name'], f"{node_type}-{i}")
+                for i in range(len(nodes)):
+                    partition = [x for x in partitions if x.properties.get("name") == nodes[i]][0]
 
-                exit_code, err = boot_manager.boot_partition()
-                if exit_code != 0:  
-                    logger.error(f"Failed to boot {node_type} node {nodes[i]}, {err}")
-                    return 1, f"Failed to boot {node_type} node {nodes[i]}: {err}"
-                logger.info(f"Successfully booted {node_type} node {nodes[i]}")
+                    logger.info(f"Booting {node_type} node : {node_type}-{i} : {nodes[i]}")
+
+                    dpm_partition = DpmPartition(nodes[i], config['infra']['disk_type'], config['infra']['network_type'], partition)
+
+                    boot_manager = BootManager(
+                        hmc,
+                        dpm_partition,
+                        config['ftp']['host'],
+                        config['ftp_username'],
+                        config['ftp_password'],
+                        config['cluster']['name'],
+                        f"{node_type}-{i}"
+                    )
+
+                    futures.append(executor.submit(boot_manager.boot_partition))
+
+                for i, future in enumerate(as_completed(futures)):
+                    exit_code, err = future.result()
+                    if exit_code != 0:
+                        logger.error(f"Failed to boot {node_type} node {nodes[i]}, {err}")
+                        return 1, f"Failed to boot {node_type} node {nodes[i]}: {err}"
+                    logger.info(f"Successfully booted {node_type} node {nodes[i]}")
+
             logger.info(f"Completed the boot procedure for {node_type} nodes")
 
         logger.info("Successfully completed the boot procedure for all nodes")
     finally:
         hmc.disconnect()
+
     return 0, ""
 
 def wait_for_installation_completion(bastion_client, cluster_name: str):
